@@ -1,0 +1,15 @@
+{
+  "name": "void-shells-board",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "schema:local": "wrangler d1 execute void-shells-board --local --file=./schema.sql",
+    "schema:remote": "wrangler d1 execute void-shells-board --remote --file=./schema.sql",
+    "test": "node test/api.test.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

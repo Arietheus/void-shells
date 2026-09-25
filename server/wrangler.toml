@@ -1,0 +1,38 @@
+name = "void-shells-board"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# Filled in by `wrangler d1 create void-shells-board` -- paste the id it prints.
+[[d1_databases]]
+binding = "DB"
+database_name = "void-shells-board"
+database_id = "PASTE_DATABASE_ID_HERE"
+
+# Rate limiting that works on a workers.dev URL. A WAF rate limiting rule
+# cannot be used here: those are configured per zone (per domain added to
+# Cloudflare), and workers.dev is not a zone you control. This binding ships
+# with the Worker instead and needs no domain at all.
+#
+# namespace_id is any number unique within your account. period must be 10 or
+# 60. Two bindings sharing a namespace_id share counters, so give each Worker
+# its own.
+[[ratelimits]]
+name = "SUBMIT_LIMITER"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }
+
+[vars]
+# Who the browser is allowed to hand the board's answers to. Comma separated.
+#
+#   chrome-extension://*        any extension -- the default, and what you
+#                               want unless you have a reason not to. An
+#                               unpacked dev load and a Web Store build have
+#                               different ids, and this covers both without a
+#                               redeploy every time one changes.
+#   chrome-extension://<id>     one exact build
+#   *                           anything, websites included
+#
+# This is a browser-side rule, not a lock: a script with curl sends no Origin
+# and was never subject to it. The validator, the rate limiter and per-player
+# scoring are what keep the board honest.
+ALLOWED_ORIGINS = "chrome-extension://*"

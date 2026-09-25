@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Void Shells",
+  "version": "6.12.1",
+  "description": "A gravity platformer shooter in your toolbar. Hold the line against the swarm.",
+  "permissions": [
+    "storage"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Void Shells"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

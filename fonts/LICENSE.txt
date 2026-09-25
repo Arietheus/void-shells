@@ -1,0 +1,4 @@
+DejaVu fonts, subset for Void Shells.
+Licensed under the Bitstream Vera Fonts Licence, which permits
+redistribution and modification. Full text:
+https://dejavu-fonts.github.io/License.html

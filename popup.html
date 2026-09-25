@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="hud">
+    <div class="gauge gauge-vitals">
+      <div class="pips" id="pips"></div>
+    </div>
+    <div class="gauge gauge-wave">
+      <span class="gauge-key">Wave</span>
+      <b id="wave">1</b>
+    </div>
+    <div class="gauge gauge-tag"><em id="diff-tag"></em></div>
+    <div class="gauge gauge-score">
+      <b id="score">0</b>
+      <span class="best">best <b id="best">0</b></span>
+    </div>
+  </header>
+
+  <div class="frame">
+    <canvas id="stage" width="760" height="440"></canvas>
+
+    <div class="overlay" id="overlay">
+      <div class="masthead">
+        <p class="banner" id="banner">Void Shells</p>
+        <p class="blurb" id="blurb"></p>
+      </div>
+
+      <div class="postmortem" id="postmortem" hidden>
+        <div class="pm-stats" id="pm-stats"></div>
+        <div class="pm-loadout" id="pm-loadout"></div>
+        <p class="pm-line" id="pm-line"></p>
+      </div>
+
+      <div class="sandbox" id="sandbox" hidden>
+        <div class="sb-row">
+          <span class="sb-label">wave</span>
+          <button type="button" data-w="-25">&minus;25</button>
+          <button type="button" data-w="-5">&minus;5</button>
+          <button type="button" data-w="-1">&minus;1</button>
+          <b id="sb-wave">1</b>
+          <button type="button" data-w="1">+1</button>
+          <button type="button" data-w="5">+5</button>
+          <button type="button" data-w="25">+25</button>
+          <span class="sb-hint" id="sb-what"></span>
+        </div>
+        <div class="sb-grid" id="sb-upgrades"></div>
+        <div class="sb-row sb-foot">
+          <button type="button" id="sb-clear">clear</button>
+          <button type="button" id="sb-max">max all</button>
+          <button type="button" id="sb-back">back</button>
+          <button type="button" id="sb-start" class="primary">run it</button>
+        </div>
+      </div>
+
+      <div class="picker" id="picker" hidden>
+        <div class="shells" id="char-list"></div>
+        <p class="shell-blurb" id="shell-blurb"></p>
+        <ol id="diff-list"></ol>
+      </div>
+
+      <div class="picks" id="picks" hidden>
+        <ol id="pick-list"></ol>
+        <p class="loadout" id="loadout"></p>
+      </div>
+    </div>
+
+    <div class="settings" id="forge" hidden>
+      <p class="settings-title">The forge <span id="forge-slag"></span></p>
+      <div class="forge-tabs" id="forge-tabs">
+        <button type="button" data-tab="gear" class="on">Shells &amp; upgrades</button>
+        <button type="button" data-tab="fit">Cosmetics</button>
+        <span class="forge-hint" id="forge-hint" hidden></span>
+      </div>
+      <div id="forge-list"></div>
+      <div class="settings-foot">
+        <button type="button" id="forge-close" class="primary">Done</button>
+      </div>
+    </div>
+
+    <div class="settings" id="skins" hidden>
+      <p class="settings-title">Skins</p>
+      <div id="skin-list"></div>
+      <div class="settings-foot">
+        <button type="button" id="skin-close" class="primary">Done</button>
+      </div>
+    </div>
+
+    <div class="settings" id="events" hidden>
+      <p class="settings-title">Events</p>
+      <p class="berth-hint" id="event-hint"></p>
+      <div id="event-list"></div>
+      <div class="settings-foot">
+        <button type="button" id="event-close" class="primary">Done</button>
+      </div>
+    </div>
+
+    <div class="settings" id="board" hidden>
+      <p class="settings-title">The board <span id="board-state"></span></p>
+      <div class="forge-tabs" id="board-tabs"></div>
+      <ol class="board-list" id="board-list"></ol>
+      <div class="board-me" id="board-me" hidden></div>
+      <div class="sb-row board-name">
+        <span class="sb-label">name</span>
+        <input type="text" id="board-name" maxlength="18" spellcheck="false"
+               autocomplete="off" placeholder="unnamed">
+        <button type="button" id="board-save">save</button>
+      </div>
+      <p class="aux-note" id="board-note"></p>
+      <div class="settings-foot">
+        <button type="button" id="board-close" class="primary">Done</button>
+      </div>
+    </div>
+
+    <div class="settings" id="berths" hidden>
+      <p class="settings-title">The berths <span id="berth-slag"></span></p>
+      <p class="berth-hint" id="berth-hint"></p>
+      <div id="berth-list"></div>
+      <div class="settings-foot">
+        <button type="button" id="berth-close" class="primary">Done</button>
+      </div>
+    </div>
+
+    <div class="settings" id="settings" hidden>
+      <p class="settings-title">Controls</p>
+      <ul id="bind-list"></ul>
+      <div class="settings-foot">
+        <button type="button" id="bind-reset">Reset to defaults</button>
+        <button type="button" id="bind-close" class="primary">Done</button>
+      </div>
+      <div class="sb-row">
+        <span class="sb-label">sound</span>
+        <button type="button" id="aud-toggle">on</button>
+        <input type="range" id="aud-sfx" min="0" max="100" value="70" aria-label="Effects volume">
+      </div>
+      <div class="sb-row">
+        <span class="sb-label">music</span>
+        <input type="range" id="aud-music" min="0" max="100" value="60" aria-label="Music volume">
+      </div>
+      <div class="sb-row">
+        <span class="sb-label">blur</span>
+        <button type="button" id="blur-toggle" aria-label="Motion blur">on</button>
+        <input type="range" id="blur-amt" min="0" max="100" value="50" aria-label="Motion blur strength">
+      </div>
+    </div>
+  </div>
+
+  <footer class="legend">
+    <span><b>&larr; &rarr;</b> move</span>
+    <span><b>&uarr; &darr;</b> aim (with <b>&larr; &rarr;</b>)</span>
+    <span><b>space</b> jump</span>
+    <span><b>D</b> fire</span>
+    <span class="cd" id="cd-nade"><b>S</b> grenade</span>
+    <span class="cd" id="cd-dash"><b>shift</b> dash</span>
+    <span class="toggle" id="aim-mode"><b>M</b> mouse aim</span>
+    <button type="button" class="link" id="open-settings">controls <b>esc</b></button>
+    <button type="button" class="link" id="open-events">events</button>
+    <button type="button" class="link" id="open-berths">berths <b>R</b></button>
+    <button type="button" class="link" id="open-skins">skins</button>
+    <button type="button" class="link" id="open-board">board</button>
+    <button type="button" class="link" id="open-tab">open big <b>&#8599;</b></button>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

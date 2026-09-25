@@ -1,0 +1,1404 @@
+/* Void Shells.
+
+   The look is a dungeon, not a control room: chiselled serif capitals like
+   something cut into a wall, warm torchlight on cold rock, speckled stone
+   rather than scanlines.
+
+   Two rules hold it together. Nothing is a box — panels are cut from stone
+   with a heavy lit edge down one side, never a four-sided border. And
+   selection is never an outline colour: the chosen slab is warmed by
+   torchlight, so you find it the way you'd find the lit doorway in a dark
+   room. */
+
+@font-face {
+  font-family: "VS Display";
+  src: url("fonts/vs-display.woff2") format("woff2");
+  font-weight: 700;
+  font-display: block;
+}
+@font-face {
+  font-family: "VS Voice";
+  src: url("fonts/vs-voice.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: "VS Data";
+  src: url("fonts/vs-data.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+}
+
+/* Blocks are hewn, not milled: every slab loses a corner, and the cut
+   alternates so a column of them doesn't line up like a spreadsheet. */
+@supports (clip-path: polygon(0 0)) {
+  .shellcard, .tier, .pick, .pm-stat, .gauge {
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 9px) 100%, 0 100%);
+    box-shadow: var(--carved);
+}
+  .tier:nth-child(even), .pm-stat:nth-child(even) {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 9px 100%, 0 calc(100% - 6px));
+  }
+}
+
+/* torchlight is never steady */
+@keyframes torch {
+  0%, 100% { opacity: 1; }
+  38%      { opacity: 0.82; }
+  61%      { opacity: 0.95; }
+  79%      { opacity: 0.87; }
+}
+
+:root {
+  --pit:       #171c1a;
+  --pit-lit:   #1f2624;
+  --stone:     #2c3531;
+  --stone-lit: #455049;
+  --bone:      #ede6d2;
+  --sulfur:    #d6c63c;
+  --rust:      #c0562e;
+  --ember:     #9e2b45;
+  --mint:      #7fc4a8;
+  --dim:       #7c8079;
+
+  --display: "VS Display", Georgia, "Times New Roman", serif;
+  --voice: "VS Voice", Georgia, "Iowan Old Style", Palatino, serif;
+  --data: "VS Data", "Courier New", ui-monospace, monospace;
+
+  --grain:
+    radial-gradient(circle at 18% 34%, rgba(255,255,255,0.022) 0 1px, transparent 1px),
+    radial-gradient(circle at 62% 71%, rgba(255,255,255,0.018) 0 1px, transparent 1px),
+    radial-gradient(circle at 84% 22%, rgba(0,0,0,0.16) 0 1.4px, transparent 1.4px),
+    radial-gradient(circle at 37% 82%, rgba(0,0,0,0.13) 0 1.2px, transparent 1.2px);
+  --grain-size: 37px 29px, 53px 41px, 43px 31px, 61px 47px;
+
+  --lit: radial-gradient(
+    120% 160% at 0% 50%,
+    color-mix(in srgb, var(--sulfur) 22%, transparent) 0%,
+    transparent 62%
+  );
+
+  /* cut into the rock rather than sitting on it */
+  --carved:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    inset 0 -3px 7px rgba(0, 0, 0, 0.42),
+    inset 3px 0 5px rgba(0, 0, 0, 0.25);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 792px;
+  margin: 0;
+  padding: 12px 16px 10px;
+  background: var(--pit);
+  color: var(--bone);
+  font-family: var(--voice);
+  font-size: 12px;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+b { font-weight: 700; }
+
+.rock {
+  background-color: var(--pit-lit);
+  background-image: var(--grain);
+  background-size: var(--grain-size);
+}
+
+/* --- carved plaques -------------------------------------------------- */
+
+.hud {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  margin-bottom: 8px;
+  padding-left: 3px;
+  background: var(--pit);
+  border-left: 4px solid var(--stone-lit);
+}
+
+.gauge {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 13px;
+  background-color: var(--pit-lit);
+  background-image: var(--grain);
+  background-size: var(--grain-size);
+}
+
+.gauge-key {
+  font-family: var(--display);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.gauge b {
+  font-family: var(--data);
+  font-variant-numeric: tabular-nums;
+}
+
+.gauge-wave b { font-size: 15px; color: var(--rust); }
+.gauge-tag { flex: 1; justify-content: flex-start; }
+
+.gauge-tag em {
+  color: var(--stone-lit);
+  font-family: var(--data);
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.gauge-score b { font-size: 19px; color: var(--sulfur); line-height: 1; }
+
+.best {
+  font-family: var(--data);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--dim);
+}
+
+.best b { font-size: 11px; color: var(--bone); }
+
+.pips { display: flex; gap: 2px; }
+
+.pip {
+  width: 9px;
+  height: 14px;
+  background: var(--mint);
+  clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%);
+}
+
+.pip.spent { background: transparent; box-shadow: inset 0 0 0 1px var(--stone-lit); }
+
+/* --- stage ----------------------------------------------------------- */
+
+.frame {
+  position: relative;
+  width: 760px;
+  height: 440px;
+  border-left: 3px solid var(--stone-lit);
+  border-right: 3px solid var(--stone-lit);
+  overflow: hidden;
+}
+
+canvas { display: block; width: 760px; height: 440px; }
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 22px 34px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--pit) 34%, transparent) 0%,
+    color-mix(in srgb, var(--pit) 88%, transparent) 32%,
+    color-mix(in srgb, var(--pit) 95%, transparent) 100%
+  );
+  backdrop-filter: blur(1.5px);
+  pointer-events: none;
+}
+
+.overlay[hidden] { display: none; }
+
+/* --- masthead -------------------------------------------------------- */
+
+.masthead {
+  position: relative;
+  width: 100%;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--stone-lit);
+}
+
+.masthead::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 92px;
+  height: 2px;
+  background: linear-gradient(to right, var(--sulfur), transparent);
+}
+
+.banner {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+
+.banner.dead { color: var(--ember); }
+.banner.clear { color: var(--sulfur); }
+
+.blurb {
+  margin: 5px 0 0;
+  font-family: var(--voice);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.blurb:empty { display: none; }
+.blurb b { font-family: var(--data); font-style: normal; color: var(--sulfur); }
+
+/* --- shell slabs ----------------------------------------------------- */
+
+.shells {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+  margin: 12px 0 0;
+}
+
+.shellcard {
+  flex: 1;
+  padding: 10px 12px 10px 13px;
+  background-color: var(--pit-lit);
+  background-image: var(--grain);
+  background-size: var(--grain-size);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: background-color 130ms ease-out;
+  box-shadow: var(--carved);
+}
+
+.shellcard:hover { background-color: var(--stone); }
+
+.shellcard { position: relative; }
+
+.shellcard.current { border-left-color: var(--sulfur); }
+
+.shellcard.current::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--lit);
+  animation: torch 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.shell-name {
+  display: block;
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: var(--bone);
+}
+
+.shellcard.current .shell-name { color: var(--sulfur); }
+
+.shellcard.locked {
+  cursor: default;
+  border-left-color: var(--ember);
+  filter: grayscale(0.5) brightness(0.62);
+}
+
+/* the one line of description, for whichever slab is lit */
+.shell-blurb {
+  margin: 7px 0 0;
+  padding-left: 3px;
+  min-height: 15px;
+  font-family: var(--voice);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+/* --- depth ledger ---------------------------------------------------- */
+
+.picker { width: 100%; margin-top: 8px; pointer-events: auto; }
+.picker[hidden] { display: none; }
+
+.picker ol {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tier {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 14px 7px 0;
+  background-color: var(--pit-lit);
+  background-image: var(--grain);
+  background-size: var(--grain-size);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: background-color 130ms ease-out;
+  box-shadow: var(--carved);
+}
+
+.tier:hover { background-color: var(--stone); }
+
+.tier {
+  position: relative;
+}
+
+.tier.current { border-left-color: var(--sulfur); }
+
+.tier.current::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--lit);
+  animation: torch 2.7s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.tier-key {
+  width: 52px;
+  text-align: center;
+  font-family: var(--display);
+  font-size: 23px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--stone-lit);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+.tier.current .tier-key { color: var(--sulfur); }
+
+.tier-body { display: flex; flex-direction: column; gap: 1px; margin-right: auto; }
+
+.tier-name {
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  color: var(--bone);
+}
+
+.tier-note {
+  font-family: var(--voice);
+  font-style: italic;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.tier-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-family: var(--data);
+  font-size: 10px;
+}
+
+.tier-meta b { font-size: 14px; color: var(--sulfur); }
+.tier-meta em { color: var(--dim); font-style: normal; letter-spacing: 0.06em; }
+
+/* --- the dead --------------------------------------------------------- */
+
+.postmortem {
+  width: 100%;
+  margin: 12px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--stone-lit);
+}
+
+.postmortem[hidden] { display: none; }
+
+.pm-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; }
+
+.pm-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 11px;
+  background-color: var(--pit-lit);
+  background-image: var(--grain);
+  background-size: var(--grain-size);
+  box-shadow: var(--carved);
+}
+
+.pm-stat b {
+  font-family: var(--data);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  color: var(--bone);
+}
+
+.pm-stat span {
+  font-family: var(--display);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.pm-stat.record b { color: var(--sulfur); }
+
+.pm-loadout { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+
+.pm-chip {
+  padding: 3px 9px 3px 7px;
+  border-left: 2px solid var(--stone-lit);
+  background: var(--pit-lit);
+  font-family: var(--voice);
+  font-size: 11px;
+  color: var(--bone);
+}
+
+.pm-chip b { font-family: var(--data); color: var(--sulfur); }
+.pm-chip.empty { border-left-color: transparent; color: var(--dim); font-style: italic; }
+
+.pm-line {
+  margin: 10px 0 0;
+  font-family: var(--voice);
+  font-style: italic;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+/* --- salvage --------------------------------------------------------- */
+
+.picks { width: 100%; margin-top: 12px; pointer-events: auto; }
+.picks[hidden] { display: none; }
+
+.picks ol { display: flex; gap: 2px; margin: 0; padding: 0; list-style: none; }
+
+.pick {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 12px 12px;
+  background-color: var(--pit-lit);
+  background-image: var(--grain);
+  background-size: var(--grain-size);
+  border-top: 3px solid var(--stone-lit);
+  cursor: pointer;
+  transition: background-color 130ms ease-out, border-color 130ms ease-out;
+  box-shadow: var(--carved);
+}
+
+.pick:hover { background-color: var(--stone); border-top-color: var(--sulfur); }
+
+.pick-key { font-family: var(--display); font-size: 16px; line-height: 1; color: var(--sulfur); }
+
+.pick-name {
+  font-family: var(--display);
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  color: var(--bone);
+}
+
+.pick-desc {
+  font-family: var(--voice);
+  font-style: italic;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--dim);
+}
+
+.loadout { margin: 9px 0 0; font-family: var(--data); font-size: 9px; color: var(--dim); }
+
+/* --- panels ---------------------------------------------------------- */
+
+.settings {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 24px 14px;
+  background-color: color-mix(in srgb, var(--pit) 96%, transparent);
+  background-image: var(--grain);
+  background-size: var(--grain-size);
+}
+
+.settings[hidden] { display: none; }
+
+.settings-title {
+  margin: 0 0 12px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--stone-lit);
+  font-family: var(--display);
+  font-size: 12px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+#bind-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bind {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0 5px 9px;
+  border-left: 2px solid var(--stone);
+}
+
+.bind-label { font-family: var(--voice); font-size: 12px; }
+
+.bind-key {
+  min-width: 92px;
+  padding: 3px 9px;
+  border: 0;
+  border-left: 2px solid var(--stone-lit);
+  background: var(--pit-lit);
+  color: var(--sulfur);
+  font-family: var(--data);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 110ms ease-out;
+}
+
+.bind-key:hover { border-left-color: var(--sulfur); }
+.bind-key.listening { border-left-color: var(--mint); color: var(--mint); }
+
+.settings-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.settings-foot button,
+.sandbox button,
+.link {
+  padding: 6px 13px;
+  border: 0;
+  border-top: 2px solid var(--stone-lit);
+  background: var(--pit-lit);
+  color: var(--dim);
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 110ms ease-out, border-color 110ms ease-out;
+}
+
+.settings-foot button:hover,
+.sandbox button:hover,
+.link:hover { color: var(--bone); border-top-color: var(--sulfur); }
+
+.settings-foot .primary { border-top-color: var(--sulfur); color: var(--sulfur); }
+
+.settings-foot button.ghost {
+  margin-right: auto;
+  border-top-color: transparent;
+  color: color-mix(in srgb, var(--dim) 55%, transparent);
+}
+
+.settings-foot button.ghost:hover { color: var(--dim); border-top-color: var(--stone); }
+
+/* --- the auxiliary panel ---------------------------------------------- */
+
+.aux-slag {
+  float: right;
+  font-family: var(--display);
+  letter-spacing: 0.06em;
+  color: var(--sulfur);
+  text-transform: none;
+}
+
+.aux-note {
+  margin: 0 0 10px;
+  max-width: 52ch;
+  font-family: var(--voice);
+  font-size: 10px;
+  font-style: italic;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+/* --- the forge ------------------------------------------------------- */
+
+#forge-slag {
+  float: right;
+  font-family: var(--display);
+  letter-spacing: 0.06em;
+  color: var(--sulfur);
+  text-transform: none;
+}
+
+.forge-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 6px;
+}
+
+.forge-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  padding: 4px 9px;
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--dim) 70%, transparent);
+  cursor: pointer;
+  transition: color 110ms ease-out, border-color 110ms ease-out;
+}
+
+.forge-tabs button:hover { color: var(--bone); }
+
+.forge-tabs button.on {
+  color: var(--sulfur);
+  border-bottom-color: var(--sulfur);
+}
+
+.forge-hint {
+  margin-left: auto;
+  font-family: var(--voice);
+  font-size: 10px;
+  font-style: italic;
+  color: var(--dim);
+}
+
+#forge-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  max-height: 262px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.rack-head {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 8px 0 1px;
+  padding: 0 2px 3px;
+  border-bottom: 1px solid color-mix(in srgb, var(--stone) 70%, transparent);
+}
+
+.rack-head:first-child { margin-top: 0; }
+
+.rack-head b {
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+
+.rack-head em {
+  font-family: var(--voice);
+  font-size: 10px;
+  font-style: italic;
+  color: var(--dim);
+}
+
+.rack-head span {
+  margin-left: auto;
+  font-family: var(--display);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+}
+
+.rack-head.full span { color: var(--sulfur); }
+
+.buy-icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 30px;
+  border-left: 2px solid color-mix(in srgb, var(--stone) 60%, transparent);
+  background: color-mix(in srgb, var(--pit) 70%, transparent);
+}
+
+.buy.trinket.worn .buy-icon {
+  border-left-color: var(--sulfur);
+  background: color-mix(in srgb, var(--sulfur) 12%, transparent);
+}
+
+.buy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 11px;
+  border: 0;
+  border-left: 3px solid var(--stone-lit);
+  background: var(--pit-lit);
+  color: var(--bone);
+  font-family: var(--voice);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--carved);
+  transition: border-color 110ms ease-out, background 110ms ease-out;
+}
+
+.buy:hover { border-left-color: var(--sulfur); background: var(--stone); }
+
+.buy-text { display: flex; flex-direction: column; gap: 1px; margin-right: auto; }
+.buy-text b { font-family: var(--display); font-size: 12px; letter-spacing: 0.04em; }
+.buy-text em { color: var(--dim); font-size: 10px; font-style: italic; line-height: 1.2; }
+
+.buy-cost {
+  flex-shrink: 0;
+  font-family: var(--data);
+  font-size: 11px;
+  color: var(--sulfur);
+}
+
+.buy.poor { cursor: default; opacity: 0.5; }
+.buy.poor:hover { border-left-color: var(--stone-lit); background: var(--pit-lit); }
+.buy.poor .buy-cost { color: var(--ember); }
+
+.buy.done { cursor: default; border-left-color: var(--mint); }
+.buy.done:hover { background: var(--pit-lit); }
+.buy.done .buy-cost { color: var(--mint); }
+
+.buy.trinket { border-left-color: var(--stone); gap: 8px; padding: 5px 9px 5px 7px; }
+.buy.trinket.done { border-left-color: var(--stone-lit); }
+.buy.trinket.done .buy-cost { color: var(--dim); }
+.buy.trinket.worn { border-left-color: var(--sulfur); }
+.buy.trinket.worn .buy-cost { color: var(--sulfur); }
+.buy.trinket.worn .buy-text b { color: var(--sulfur); }
+
+.pm-chip.slag { border-left-color: var(--sulfur); }
+.pm-chip.slag b { color: var(--sulfur); }
+
+/* --- cosmetics ------------------------------------------------------- */
+
+#skin-list { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+
+.skin {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 11px;
+  border: 0;
+  border-left: 3px solid transparent;
+  background: var(--pit-lit);
+  color: var(--bone);
+  font-family: var(--voice);
+  text-align: left;
+  cursor: pointer;
+  transition: background 110ms ease-out;
+}
+
+.skin:hover { background: var(--stone); }
+
+.skin.current {
+  border-left-color: var(--mint);
+  background-image: radial-gradient(120% 160% at 0% 50%,
+    color-mix(in srgb, var(--mint) 18%, transparent) 0%, transparent 62%);
+}
+
+.skin-swatch { display: flex; flex-shrink: 0; }
+.skin-swatch i { display: block; width: 10px; height: 24px; }
+.skin-text { display: flex; flex-direction: column; gap: 1px; }
+
+.skin-text b {
+  font-family: var(--display);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.skin-text em { color: var(--dim); font-size: 10px; font-style: italic; }
+.skin.current .skin-text b { color: var(--mint); }
+
+/* --- sandbox --------------------------------------------------------- */
+
+.sandbox {
+  width: 620px;
+  margin: 12px auto 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--stone-lit);
+  background-color: var(--pit-lit);
+  background-image: var(--grain);
+  background-size: var(--grain-size);
+  pointer-events: auto;
+  box-shadow: var(--carved);
+}
+
+.sandbox[hidden] { display: none; }
+
+.sb-row { display: flex; align-items: center; gap: 4px; }
+
+/* The auxiliary panel's upgrade picker. Matched to the buttons beside it rather
+   than left as a browser default, which reads as a different program. */
+.sb-row select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--bone);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--stone-lit);
+  border-radius: 3px;
+}
+.sb-row select:disabled { opacity: 0.45; }
+
+.sb-label {
+  margin-right: 6px;
+  font-family: var(--display);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* In the controls panel the labels share a column, so the audio and blur
+   controls start in line however long each word is. */
+#settings .sb-label { min-width: 48px; }
+
+.sb-row > b {
+  min-width: 46px;
+  text-align: center;
+  font-family: var(--display);
+  font-size: 22px;
+  color: var(--sulfur);
+}
+
+.sb-hint { margin-left: auto; font-family: var(--voice); font-style: italic; font-size: 11px; color: var(--dim); }
+
+.sb-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  margin: 10px 0;
+  max-height: 196px;
+  overflow-y: auto;
+}
+
+.sb-chip {
+  border: 0 !important;
+  border-left: 2px solid transparent !important;
+  background: var(--pit-lit) !important;
+  padding: 5px 8px !important;
+  font-family: var(--voice) !important;
+  font-size: 11px !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  text-align: left;
+}
+
+.sb-chip b { font-family: var(--data); color: var(--dim); }
+.sb-chip.on { border-left-color: var(--mint) !important; color: var(--bone) !important; }
+.sb-chip.on b { color: var(--mint); }
+
+.sb-foot { justify-content: flex-end; gap: 2px; }
+
+/* --- footer ---------------------------------------------------------- */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 15px;
+  margin-top: 8px;
+  padding-left: 3px;
+  font-family: var(--voice);
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.legend b { font-family: var(--data); font-size: 10px; color: var(--bone); }
+
+.cd.cooling { opacity: 0.3; }
+.cd.cooling b { color: var(--dim); }
+.toggle.on, .toggle.on b { color: var(--mint); }
+
+.link { margin-left: auto; padding: 3px 10px; }
+.link + .link { margin-left: 0; }
+
+/* --- tab / fullscreen ------------------------------------------------ */
+
+body.tab {
+  width: 100vw;
+  min-height: 100vh;
+  margin: 0;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+body.tab .hud,
+body.tab .legend {
+  width: min(calc(100vw - 48px), calc((100vh - 132px) * 760 / 440));
+}
+
+body.tab .frame {
+  width: min(calc(100vw - 48px), calc((100vh - 132px) * 760 / 440));
+  height: auto;
+  aspect-ratio: 760 / 440;
+}
+
+body.tab canvas { width: 100%; height: 100%; }
+
+/* The panels are laid out in pixels against the 760x440 the game is drawn
+   for, and opening big only ever scaled the frame — so the skins, the forge,
+   the berths and the rest stayed at their popup size in the corner of a huge
+   dark rectangle, with the Done button stranded three feet from the list it
+   belonged to.
+
+   `--ui` is how much bigger the frame is than the size it was designed at.
+   It is published by fitCanvas, which already measures the frame every time
+   it changes, because CSS cannot work it out: the ratio wants a length
+   divided by a length, and calc() will not do that. `zoom` re-lays
+   the panel out at that scale rather than stretching a picture of it, so the
+   text stays as crisp as it is in the popup, and `inset: 0` still fills the
+   frame because a zoomed element resolves its percentages in its own scaled
+   coordinates. It never goes below 1: a window smaller than the popup should
+   shrink the canvas, not the words on it. */
+body.tab { --ui: 1; }        /* until fitCanvas has measured, popup size */
+
+/* Only the panel chrome. The title screen and the death screen were built for
+   this already — their type is sized in vw — and zooming them on top of that
+   scaled them twice, which threw "SHELL LOST" off the edge of the frame. */
+body.tab .settings,
+body.tab .sandbox {
+  zoom: var(--ui);
+}
+body.tab .banner { font-size: clamp(40px, 4.6vw, 70px); }
+body.tab .blurb { font-size: clamp(13px, 1.3vw, 19px); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+  .overlay { backdrop-filter: none; }
+}
+
+/* --- the berths ------------------------------------------------------- */
+
+#berth-slag {
+  float: right;
+  font-family: var(--display);
+  letter-spacing: 0.06em;
+  color: var(--sulfur);
+  text-transform: none;
+}
+
+.berth-hint {
+  margin: 0 0 9px;
+  font-family: var(--voice);
+  font-size: 10px;
+  font-style: italic;
+  color: var(--dim);
+}
+
+#berth-list { display: flex; flex-direction: column; gap: 3px; }
+
+.berth {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 11px;
+  border-left: 2px solid var(--stone);
+  background: color-mix(in srgb, var(--pit) 55%, transparent);
+}
+
+.berth.held { border-left-color: var(--sulfur); }
+.berth.spoiled { border-left-color: var(--ember); }
+.berth.locked { opacity: 0.62; }
+
+.berth-text { display: flex; flex-direction: column; gap: 2px; margin-right: auto; }
+
+.berth-text b {
+  font-family: var(--display);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--bone);
+}
+
+.berth-text em {
+  font-family: var(--voice);
+  font-size: 10px;
+  font-style: italic;
+  color: var(--dim);
+}
+
+.berth button {
+  border: 1px solid color-mix(in srgb, var(--stone) 80%, transparent);
+  background: none;
+  padding: 4px 10px;
+  font-family: var(--display);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+  cursor: pointer;
+  transition: color 110ms ease-out, border-color 110ms ease-out;
+}
+
+.berth button:hover:not(:disabled) { color: var(--bone); border-color: var(--stoneLit); }
+.berth .berth-go { color: var(--sulfur); border-color: color-mix(in srgb, var(--sulfur) 55%, transparent); }
+.berth .berth-go:hover { color: var(--sulfur); border-color: var(--sulfur); }
+.berth .berth-buy.poor { opacity: 0.45; cursor: default; }
+
+.berth-blocked {
+  font-family: var(--voice);
+  font-size: 10px;
+  font-style: italic;
+  color: var(--dim);
+}
+
+/* --- events ----------------------------------------------------------- */
+
+#event-list { display: flex; flex-direction: column; gap: 6px; }
+
+.event {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--mint);
+  background: color-mix(in srgb, var(--pit) 55%, transparent);
+}
+
+.event-text { display: flex; flex-direction: column; gap: 3px; margin-right: auto; }
+
+.event-text b {
+  font-family: var(--display);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--bone);
+}
+
+.event-text em {
+  font-family: var(--voice);
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.45;
+  max-width: 46ch;
+  color: var(--dim);
+}
+
+.event-text i {
+  font-family: var(--display);
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--dim) 80%, transparent);
+}
+
+.event-go {
+  border: 1px solid color-mix(in srgb, var(--mint) 55%, transparent);
+  background: none;
+  padding: 7px 16px;
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mint);
+  cursor: pointer;
+  transition: border-color 110ms ease-out, background 110ms ease-out;
+}
+
+.event-go:hover {
+  border-color: var(--mint);
+  background: color-mix(in srgb, var(--mint) 12%, transparent);
+}
+
+.event-blocked {
+  font-family: var(--voice);
+  font-size: 10px;
+  font-style: italic;
+  color: var(--dim);
+}
+
+/* =====================================================================
+   Carving pass. The panels had the right idea — plaques cut into rock —
+   but they were flat fills with a border, so nothing looked cut. Every
+   surface below gets a lit top edge and a shadowed underside, which is
+   the whole of what makes a slab read as raised, plus the states the UI
+   was missing entirely: focus, press, disabled, and scrollbars.
+   Appended rather than woven in, so the base sheet stays readable.
+   ===================================================================== */
+
+:root {
+  --lip: inset 0 1px 0 rgba(237, 230, 210, 0.09);
+  --under: inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+  --cut: 0 1px 0 rgba(0, 0, 0, 0.5);
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+::selection { background: rgba(214, 198, 60, 0.28); color: var(--bone); }
+
+/* --- carved surfaces -------------------------------------------------- */
+
+.gauge, .shellcard, .tier, .pm-stat, .pm-chip {
+  box-shadow: var(--lip), var(--under);
+}
+
+.hud {
+  box-shadow: var(--cut), inset 0 1px 0 rgba(237, 230, 210, 0.06);
+}
+
+/* the score is the number you actually watch; give it some heat */
+.gauge-score b {
+  text-shadow: 0 0 14px rgba(214, 198, 60, 0.45);
+}
+
+.gauge-wave b { text-shadow: 0 0 10px rgba(192, 86, 46, 0.35); }
+
+/* --- health pips ------------------------------------------------------ */
+
+.pip {
+  box-shadow: 0 0 7px rgba(127, 196, 168, 0.5);
+  transition: box-shadow 160ms var(--ease), background-color 160ms var(--ease);
+}
+
+.pip.spent {
+  box-shadow: inset 0 0 0 1px var(--stone-lit);
+}
+
+/* the last pip left should be impossible to miss */
+.pips[data-low="1"] .pip:not(.spent) {
+  background: var(--ember);
+  box-shadow: 0 0 10px rgba(158, 43, 69, 0.75);
+  animation: pipbeat 900ms ease-in-out infinite;
+}
+
+@keyframes pipbeat {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+/* --- buttons ---------------------------------------------------------- */
+
+button {
+  font-family: var(--display);
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background-color 140ms var(--ease),
+              color 140ms var(--ease),
+              box-shadow 140ms var(--ease),
+              transform 60ms var(--ease);
+}
+
+button:not(.link) {
+  position: relative;
+  padding: 6px 12px;
+  color: var(--bone);
+  background: linear-gradient(180deg, var(--stone) 0%, var(--pit-lit) 100%);
+  border: 1px solid var(--stone-lit);
+  border-radius: 2px;
+  box-shadow: var(--lip), var(--under);
+}
+
+button:not(.link):hover {
+  background: linear-gradient(180deg, var(--stone-lit) 0%, var(--stone) 100%);
+  border-color: var(--dim);
+}
+
+/* pressed: the slab sinks, and the lit edge moves to the bottom */
+button:not(.link):active {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55);
+}
+
+button.primary {
+  color: var(--pit);
+  background: linear-gradient(180deg, #e6d75a 0%, var(--sulfur) 100%);
+  border-color: #f0e488;
+  font-weight: 700;
+  box-shadow: var(--lip), var(--under), 0 0 18px rgba(214, 198, 60, 0.3);
+}
+
+button.primary:hover {
+  background: linear-gradient(180deg, #f2e478 0%, #ddcd45 100%);
+  box-shadow: var(--lip), var(--under), 0 0 26px rgba(214, 198, 60, 0.5);
+}
+
+button.ghost {
+  color: var(--dim);
+  background: transparent;
+  border-color: var(--stone);
+  box-shadow: none;
+}
+
+button.ghost:hover { color: var(--bone); border-color: var(--stone-lit); }
+
+button.link {
+  color: var(--dim);
+  background: none;
+  border: 0;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+button.link:hover { color: var(--sulfur); border-bottom-color: var(--sulfur); }
+
+button:disabled,
+button[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* tabs read as one carved strip with the active one lit from beneath */
+.forge-tabs button {
+  border-radius: 0;
+  border-bottom-width: 2px;
+  border-bottom-color: transparent;
+}
+
+.forge-tabs button.on {
+  color: var(--sulfur);
+  border-bottom-color: var(--sulfur);
+  background: linear-gradient(180deg, var(--pit-lit) 0%, rgba(214, 198, 60, 0.1) 100%);
+}
+
+/* --- keyboard focus --------------------------------------------------- */
+/* There was none at all. Everything here is reachable by keyboard, so
+   everything here has to show where the keyboard is. */
+
+:focus { outline: none; }
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--sulfur);
+  outline-offset: 2px;
+  box-shadow: 0 0 14px rgba(214, 198, 60, 0.4);
+}
+
+/* --- cards ------------------------------------------------------------ */
+
+.shellcard, .tier {
+  transition: background-color 140ms var(--ease),
+              border-left-color 140ms var(--ease),
+              transform 100ms var(--ease);
+}
+
+.shellcard:hover, .tier:hover { transform: translateX(2px); }
+
+.shellcard.current, .tier.current {
+  background: linear-gradient(90deg, rgba(214, 198, 60, 0.1) 0%, transparent 60%);
+}
+
+.shellcard.locked { filter: grayscale(0.4); }
+
+.pm-stat.record {
+  box-shadow: var(--lip), var(--under), inset 0 0 20px rgba(214, 198, 60, 0.12);
+}
+
+/* --- scrollbars ------------------------------------------------------- */
+
+* { scrollbar-width: thin; scrollbar-color: var(--stone-lit) transparent; }
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.3); }
+
+::-webkit-scrollbar-thumb {
+  background: var(--stone);
+  border: 1px solid var(--stone-lit);
+  border-radius: 1px;
+}
+
+::-webkit-scrollbar-thumb:hover { background: var(--stone-lit); }
+
+/* --- overlays --------------------------------------------------------- */
+/* A panel over the arena needs to sit in front of it, not float on it. */
+
+.overlay, .postmortem, .sandbox, .settings {
+  box-shadow: inset 0 1px 0 rgba(237, 230, 210, 0.07),
+              0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+.masthead { text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55); }
+
+/* --- respect a stilled screen ---------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* --- the board -------------------------------------------------------
+   Reuses the settings panel chrome the forge, skins and events already use,
+   so it inherits the frame, the title rule and the footer without adding a
+   second visual language for the same kind of surface. */
+.board-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  max-height: 232px;
+  overflow-y: auto;
+}
+.board-list li {
+  display: grid;
+  grid-template-columns: 30px 1fr auto 62px;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(237, 230, 210, 0.06);
+  font-family: "VS Data", ui-monospace, monospace;
+  font-size: 12px;
+}
+.board-list li:last-child { border-bottom: 0; }
+/* Your own row is marked rather than moved. A board that reorders itself
+   around the reader stops being a ranking. */
+.board-list li.you {
+  background: rgba(214, 198, 60, 0.09);
+  box-shadow: inset 2px 0 0 var(--sulfur);
+}
+.board-rank { color: rgba(237, 230, 210, 0.45); text-align: right; }
+.board-name-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-wave { color: rgba(237, 230, 210, 0.5); font-size: 11px; }
+.board-score { text-align: right; color: var(--sulfur); }
+
+/* The out-of-page row, pinned under the list. Someone who cannot find
+   themselves on a board stops opening it. */
+.board-me {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(237, 230, 210, 0.18);
+}
+.board-me .board-list { margin: 0; max-height: none; }
+
+.board-name { margin-top: 10px; }
+.board-name input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(237, 230, 210, 0.16);
+  color: var(--bone);
+  font: inherit;
+  font-family: "VS Data", ui-monospace, monospace;
+  font-size: 12px;
+  padding: 4px 7px;
+}
+.board-name input:focus { outline: 1px solid var(--sulfur); }
+
+.board-empty, .board-error {
+  padding: 18px 8px;
+  text-align: center;
+  color: rgba(237, 230, 210, 0.4);
+  font-size: 12px;
+}
+.board-error { color: var(--ember); }
