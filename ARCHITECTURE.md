@@ -755,6 +755,7 @@ The ones to know:
 | `sweep.mjs` | every arena draws 600 frames without throwing or going non-finite |
 | `wrecks.mjs` | every boss comes apart as one wreck, nothing lands while it burns, the salvage screen waits |
 | `hits.mjs` | any hit restarts the Rig's rebuild; the eclipse's sphere lands with its whole disc |
+| `eclipse.mjs` | the sphere gathers, then speeds up to its cap without turning; every second trade is a totality neither body can be hurt through; the gaze holds still once locked and fires down that line; the survivor takes up its twin's weapon; saves mid-totality carry on |
 | `salvo.mjs` | the Ballast's missiles launch, close on the aim, seek, and survive a save |
 | `tour.mjs` | no door leads back into the cavern you're leaving; repeats come back far apart |
 | `ledges.mjs` | ledge dressing moves nothing else, never reaches a slab's top, draws clean, and footfalls leave movement identical |

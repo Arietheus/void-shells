@@ -2680,6 +2680,16 @@ const SFX = {
   web:     { cap: 2,  make: (v) => {
     tone({ noise: true, filter: "bandpass", cut: 900, cutTo: 380, q: 5, dur: 0.22, vol: 0.16 * v });
   } },
+  /* The eclipse's eye locking on: a thin whine rising into the lance. */
+  stare:   { cap: 1,  make: (v) => {
+    tone({ wave: "sine", freq: 520, to: 1480, dur: 0.3, vol: 0.14 * v, attack: 0.03 });
+    tone({ noise: true, filter: "bandpass", cut: 3000, cutTo: 5200, q: 8, dur: 0.3, vol: 0.06 * v });
+  } },
+  /* A totality: the light going out of the room. */
+  totality: { cap: 1, make: (v) => {
+    tone({ wave: "sawtooth", freq: 220, to: 40, dur: 1.6, vol: 0.26 * v, attack: 0.05, jitter: 0.01 });
+    tone({ noise: true, filter: "lowpass", cut: 1800, cutTo: 90, dur: 1.4, vol: 0.2 * v });
+  } },
   quake:   { cap: 2,  make: (v) => {
     tone({ wave: "sine", freq: 70, to: 28, dur: 0.5, vol: 0.34 * v });
     tone({ noise: true, filter: "lowpass", cut: 300, cutTo: 60, dur: 0.45, vol: 0.2 * v });
@@ -4009,6 +4019,17 @@ function stepProjectiles() {
       s.vx = Math.cos(now) * sp;
       s.vy = Math.sin(now) * sp;
     }
+    /* The eclipse's sphere sets off slowly and gathers pace up to its cap, so
+       it is easy to read as it leaves and still arrives about twice as fast as
+       it used to. The heading never changes: stepping aside still clears it. */
+    if (s.accel) {
+      const sp = Math.hypot(s.vx, s.vy);
+      if (sp > 0 && sp < s.vmax) {
+        const k = Math.min(s.vmax, sp + s.accel) / sp;
+        s.vx *= k;
+        s.vy *= k;
+      }
+    }
     s.x += s.vx;
     s.y += s.vy;
     s.life--;
@@ -4145,7 +4166,7 @@ function emit(x, y, spec) {
       ? (i / n) * TAU
       : (n === 1 ? 0 : (i / (n - 1) - 0.5) * arc);
     const a = base + spin + off + (jitter ? rand(-jitter, jitter) : 0);
-    foeShots.push({
+    const shot = {
       x, y,
       vx: Math.cos(a) * speed,
       vy: Math.sin(a) * speed,
@@ -4160,7 +4181,13 @@ function emit(x, y, spec) {
       sun: spec.sun ?? 0,
       homing: spec.homing ?? 0,
       web: spec.web ?? 0,
-    });
+    };
+    /* The sphere's extras, only on the shots that use them, so the thousands
+       of ordinary bolts in a save don't each carry four empty fields. */
+    if (spec.accel) { shot.accel = spec.accel; shot.vmax = spec.vmax ?? speed * 2; }
+    if (spec.dark) shot.dark = 1;
+    if (spec.shards) shot.shards = spec.shards;
+    foeShots.push(shot);
   }
 }
 
@@ -4269,8 +4296,9 @@ const BOSSES = {
   requiem:   { name: "the requiem",     w: 40, h: 50, hpMul: 1.0 },
   /* Two bodies of one fight, like the chorus, but they are never both open at
      once — see stepEclipse. Sized generously because almost all of the art is
-     drawn outside the box. */
-  eclipse:   { name: "the eclipse",     w: 52, h: 52, hpMul: 0.72 },
+     drawn outside the box. Raised from 0.72 — a little over a tenth more per
+     body — alongside the totality and the gaze. */
+  eclipse:   { name: "the eclipse",     w: 52, h: 52, hpMul: 0.8 },
   /* The Inversion crawls the walls, so it's wider than it is tall — the body
      is a disc and the legs are drawn well outside the box. */
   inversion: { name: "the inversion",   w: 58, h: 42, hpMul: 1.05 },
@@ -4412,13 +4440,16 @@ function spawnOneBoss(type, tier, slot, hpMul) {
   if (type === "eclipse") {
     /* One of light and one of dark, entering from opposite sides of the room.
        `turn` is the shared clock they trade the fight on; it is seeded here so
-       the first frame already knows which of them is open. */
+       the first frame already knows which of them is open. `tot` is the
+       totality in progress, `trades` how many have gone by, `gaze` and
+       `sunUp` the eye's stare and the sphere's gather — all read by the draw,
+       which can beat the first tick. */
+    const shared = { turn: 0, spoke: 0, flare: 0, wing: 0, tot: 0, trades: 0,
+                     gaze: 0, gazeA: 0, sunUp: 0, hpMul };
     foes.push(makeBoss(type, tier, mid - 190, -90,
-      { role: "radiance", twin: 0, orbit: 0, open: true, turn: 0,
-        spoke: 0, flare: 0, wing: 0, hpMul }));
+      { role: "radiance", twin: 0, orbit: 0, open: true, ...shared }));
     foes.push(makeBoss(type, tier, mid + 150, -90,
-      { role: "umbra", twin: 1, orbit: Math.PI, open: false, turn: 0,
-        spoke: 0, flare: 0, wing: 0, hpMul }));
+      { role: "umbra", twin: 1, orbit: Math.PI, open: false, ...shared }));
     return;
   }
 
@@ -7915,18 +7946,20 @@ function sunRim(s) {
 }
 
 function burstSun(sh) {
+  // the dark one's sphere comes apart in its own colour
+  const hue = sh.dark ? C.ember : C.sulfur;
   blasts.push({ x: sh.x, y: sh.y, t: 0, r: 130 });
-  burst(sh.x, sh.y, 46, C.bone, 6, 46);
-  burst(sh.x, sh.y, 34, C.sulfur, 4.4, 40);
+  burst(sh.x, sh.y, 46, sh.dark ? C.rust : C.bone, 6, 46);
+  burst(sh.x, sh.y, 34, hue, 4.4, 40);
   shake(14);
   sfx("blast");
-  const shards = 9;
+  const shards = sh.shards || 9;
   for (let i = 0; i < shards; i++) {
     const a = (i / shards) * TAU + rand(-0.15, 0.15);
     foeShots.push({
       x: sh.x + Math.cos(a) * 20, y: sh.y + Math.sin(a) * 20,
       vx: Math.cos(a) * 3.4, vy: Math.sin(a) * 3.4,
-      life: 120, r: 4, color: C.sulfur,
+      life: 120, r: 4, color: hue,
     });
   }
 }
@@ -7938,14 +7971,128 @@ function burstSun(sh) {
    rhythm of "which of these am I allowed to shoot" rather than a choice of
    targets, and the moment of the trade is the loudest thing on the screen.
 
-   Kill one and the other stops trading — it stays open for good and fights
-   twice as hard, which is the same bargain the chorus offers. */
+   Every second trade is a totality instead of a plain swap. The two meet in
+   the middle of the room, the dark crosses in front of the light, the room
+   goes dark around a corona, and for a few seconds neither can be hurt while
+   it throws a spiral of both their colours. Then they part and the other one
+   opens. The trades come quicker as the pair is worn down.
 
-const ECL_TRADE = 900;        // frames each holds the fight (about fifteen seconds)
+   Kill one and the other stops trading — it stays open for good, fights
+   twice as hard, and takes up its twin's weapon alongside its own: the dark
+   learns to throw a sun and the light learns to reach. */
+
+const ECL_TRADE = 900;        // frames each holds the fight at full health (fifteen seconds)
+const ECL_TRADE_MIN = 600;    // and as little as ten once the pair is nearly spent
 const ECL_SWAP = 46;          // the eclipse itself, while they change over
+const ECL_TOT = 210;          // a totality, end to end
+const ECL_TOT_MEET = 56;      // gliding together
+const ECL_TOT_PART = 156;     // and drawing apart again
+const ECL_SUN_UP = 26;        // the sphere gathering on the core before it goes
+const ECL_GAZE = 56;          // the eye's sightline following you
+const ECL_GAZE_LOCK = 18;     // then holding still — the beat to be elsewhere
+const ECL_GAZE_FIRE = 18;     // and the lance down it
 
 function eclipseTwin(f) {
   return foes.find((x) => x.boss === "eclipse" && x !== f);
+}
+
+/* How far into a totality the pair is, 0 when there isn't one. The light one
+   runs the shared clock, so it is the one that knows. */
+function eclipseTotality(f) {
+  const light = f.role === "radiance" ? f : eclipseTwin(f);
+  return light && light.role === "radiance" ? light.tot || 0 : 0;
+}
+
+// how much of the pair's health is gone, 0..1
+function eclipseWorn(f, twin) {
+  const max = f.maxHp + twin.maxHp;
+  return max > 0 ? clamp(1 - (f.hp + twin.hp) / max, 0, 1) : 0;
+}
+
+/* The trade itself. Anything either was winding up is dropped: a sealed body
+   doesn't step its attacks, so a half-finished wind-up would otherwise sit
+   frozen and go off the instant it reopened. */
+function tradeEclipse(f, twin) {
+  f.open = !f.open;
+  twin.open = !f.open;
+  f.flare = ECL_SWAP;
+  twin.flare = ECL_SWAP;
+  f.pt = twin.pt = 0;
+  f.charge = twin.charge = 0;
+  f.gaze = twin.gaze = 0;
+  f.sunUp = twin.sunUp = 0;
+  shake(12);
+  sfx("turn");
+  const o = f.open ? f : twin;
+  const oc = centerOf(o);
+  burst(oc.x, oc.y, 40, o.role === "radiance" ? C.sulfur : C.ember, 4.6, 44);
+  say(f.open ? "the light opens" : "the dark opens", 60);
+}
+
+/* A totality, stepped by the light one. It opens with a ring as they touch,
+   throws a double spiral while they are one (a third arm once the pair is
+   past half), closes with a faster ring as they part, and ends in the trade
+   it replaced. */
+function stepTotality(f, twin) {
+  f.tot++;
+  const c = centerOf(f), tc = centerOf(twin);
+  const mx = (c.x + tc.x) / 2, my = (c.y + tc.y) / 2;
+  const ring = (n, speed) => {
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + f.spoke;
+      emit(mx + Math.cos(a) * 30, my + Math.sin(a) * 30, {
+        aim: { x: Math.cos(a), y: Math.sin(a) },
+        speed, life: 260, r: 4, color: i % 2 ? C.ember : C.sulfur,
+      });
+    }
+  };
+
+  if (f.tot === ECL_TOT_MEET) {
+    ring(16, 2.8);
+    shake(14);
+    sfx("totality");
+    burst(mx, my, 44, C.bone, 5, 48);
+  } else if (f.tot > ECL_TOT_MEET && f.tot < ECL_TOT_PART && f.tot % 5 === 0) {
+    const arms = eclipseWorn(f, twin) > 0.5 ? 3 : 2;
+    f.spoke += 0.27;
+    for (let i = 0; i < arms; i++) {
+      const a = f.spoke + (i / arms) * TAU;
+      emit(mx + Math.cos(a) * 30, my + Math.sin(a) * 30, {
+        aim: { x: Math.cos(a), y: Math.sin(a) },
+        speed: 2.5, life: 260, r: 4, color: i % 2 ? C.ember : C.sulfur,
+      });
+    }
+  } else if (f.tot === ECL_TOT_PART) {
+    // the diamond ring: the light breaking back out round the edge
+    f.spoke += 0.2;
+    ring(14, 3.2);
+    shake(9);
+    burst(mx - 26, my - 15, 30, C.bone, 4.4, 40);
+  }
+
+  if (f.tot >= ECL_TOT) {
+    f.tot = 0;
+    tradeEclipse(f, twin);
+  }
+}
+
+/* The sphere, let go. It used to cross the room at a flat 1.7 and was the
+   easiest thing in the fight to wait out; now it leaves at a readable pace
+   and gathers speed toward a cap. `dark` is the survivor's inherited one:
+   smaller, and in the dark one's colour. */
+function launchSun(f, c, pc, enraged, dark) {
+  const dx = pc.x - c.x, dy = pc.y - c.y;
+  const l = Math.hypot(dx, dy) || 1;
+  emit(c.x, c.y, {
+    aim: { x: dx / l, y: dy / l },
+    speed: 2.2, accel: 0.024, vmax: enraged ? 4.4 : 3.8,
+    life: 600, r: dark ? 62 : 78,
+    color: dark ? C.ember : C.sulfur, sun: 1, dark: dark ? 1 : 0,
+    shards: enraged ? 12 : 9,
+  });
+  shake(8);
+  burst(c.x, c.y, 30, dark ? C.ember : C.bone, 4.2, 40);
+  sfx("blast", 0.8);
 }
 
 function stepEclipse(f, pc) {
@@ -7969,39 +8116,70 @@ function stepEclipse(f, pc) {
   }
 
   /* The trade. Only the light one runs the clock, so the two can never drift
-     apart or both decide to open on the same frame. */
-  if (light && twin && !alone) {
-    f.turn++;
-    if (f.turn >= ECL_TRADE) {
+     apart or both decide to open on the same frame. It runs shorter the more
+     of the pair is gone, and every second one is a totality. */
+  if (light && twin) {
+    if (f.tot > 0) {
+      stepTotality(f, twin);
+    } else if (++f.turn >= ECL_TRADE - (ECL_TRADE - ECL_TRADE_MIN) * eclipseWorn(f, twin)) {
       f.turn = 0;
-      f.open = !f.open;
-      twin.open = !f.open;
-      f.flare = ECL_SWAP;
-      twin.flare = ECL_SWAP;
-      f.pt = twin.pt = 0;
-      shake(12);
-      sfx("turn");
-      const o = f.open ? f : twin;
-      const oc = centerOf(o);
-      burst(oc.x, oc.y, 40, o.role === "radiance" ? C.sulfur : C.ember, 4.6, 44);
-      say(f.open ? "the light opens" : "the dark opens", 60);
+      f.trades = (f.trades || 0) + 1;
+      if (f.trades % 2 === 0) {
+        f.tot = 1;
+        f.charge = twin.charge = 0;
+        f.gaze = twin.gaze = 0;
+        f.sunUp = twin.sunUp = 0;
+        shake(6);
+        sfx("turn", 0.6);
+        say("totality", 80);
+      } else {
+        tradeEclipse(f, twin);
+      }
     }
   }
-  if (alone) f.open = true;
+
+  /* Left alone it opens for good and takes up its twin's weapon. Said once,
+     loudly, because the fight has just changed under you. */
+  if (alone) {
+    f.open = true;
+    f.tot = 0;
+    if (!f.heir) {
+      f.heir = true;
+      f.flare = ECL_SWAP;
+      shake(10);
+      burst(c.x, c.y, 36, light ? C.ember : C.sulfur, 4.6, 44);
+      say(light ? "the light learns to reach" : "the dark swallows the sun", 80);
+    }
+  }
 
   /* Sealed bodies drift on a wide orbit and turn everything aside. `armored`
-     is the flag the damage path already respects. */
-  f.armored = !f.open;
+     is the flag the damage path already respects. A totality seals both. */
+  const tot = eclipseTotality(f);
+  f.armored = !f.open || tot > 0;
 
-  const hubX = W / 2 + (light ? -1 : 1) * 150;
-  const hubY = 150;
-  const swing = f.open ? 60 : 96;
   f.orbit += f.open ? 0.017 : 0.008;
-  const tx = hubX + Math.cos(f.orbit) * swing;
-  const ty = hubY + Math.sin(f.orbit * 1.3) * (f.open ? 34 : 22);
-  f.x += (tx - f.w / 2 - f.x) * 0.035;
-  f.y += (ty - f.h / 2 - f.y) * 0.035;
+  if (tot > 0 && tot < ECL_TOT_PART) {
+    /* Meet in the middle of the room, the dark a step in front of the light,
+       and low enough to clear the banner, which is stamped across exactly
+       this spot at the top of the room. */
+    const mx = W / 2 + (light ? -5 : 5);
+    const my = 176 + (light ? -3 : 3);
+    f.x += (mx - f.w / 2 - f.x) * 0.075;
+    f.y += (my - f.h / 2 - f.y) * 0.075;
+  } else {
+    const hubX = W / 2 + (light ? -1 : 1) * 150;
+    const hubY = 150;
+    const swing = f.open ? 60 : 96;
+    const tx = hubX + Math.cos(f.orbit) * swing;
+    const ty = hubY + Math.sin(f.orbit * 1.3) * (f.open ? 34 : 22);
+    f.x += (tx - f.w / 2 - f.x) * 0.035;
+    f.y += (ty - f.h / 2 - f.y) * 0.035;
+  }
 
+  if (tot > 0) {
+    if (overlaps(f, hurtBox())) hurtPlayer(c.x);
+    return;
+  }
   if (!f.open) return;
   f.pt++;
 
@@ -8025,24 +8203,27 @@ function stepEclipse(f, pc) {
             speed: 3.1, life: 220, r: 4, color: C.sulfur,
           });
         }
+        /* Alone, it has the dark's reach as well: a fan thrown straight at
+           you with every ring, so the gap in the wheel is no longer safe by
+           default. */
+        if (alone) {
+          const a = Math.atan2(pc.y - c.y, pc.x - c.x);
+          emit(c.x, c.y, {
+            aim: { x: Math.cos(a), y: Math.sin(a) }, n: 5, arc: 1.05,
+            speed: 3.6, life: 240, r: 4.4, color: C.rust,
+          });
+        }
         shake(6);
         burst(c.x, c.y, 24, C.sulfur, 4, 34);
       }
     }
-    /* The sphere. Slow, vast and impossible to mistake for anything else —
-       it is not a bullet you dodge by a pixel, it is a thing crossing the
-       room that you have to be somewhere else for. */
-    if (f.pt % (enraged ? 150 : 230) === 90) {
-      const dx = pc.x - c.x, dy = pc.y - c.y;
-      const l = Math.hypot(dx, dy) || 1;
-      emit(c.x, c.y, {
-        aim: { x: dx / l, y: dy / l }, speed: 1.7, life: 600, r: 78,
-        color: C.sulfur, sun: 1,
-      });
-      shake(8);
-      burst(c.x, c.y, 30, C.bone, 4.2, 40);
-      sfx("blast", 0.8);
-    }
+    /* The sphere. Vast and impossible to mistake for anything else — it is
+       not a bullet you dodge by a pixel, it is a thing crossing the room that
+       you have to be somewhere else for. It gathers on the core for a moment
+       first, which is the tell; it is aimed when it leaves, not when it
+       starts to gather. */
+    if (f.pt % (enraged ? 128 : 180) === 60) f.sunUp = ECL_SUN_UP;
+    if (f.sunUp > 0 && --f.sunUp === 0) launchSun(f, c, pc, enraged, false);
 
   } else {
     /* Umbra: it does not fire outward, it reaches. Tendrils sweep the room on
@@ -8075,6 +8256,50 @@ function stepEclipse(f, pc) {
         aim: { x: dx / l, y: dy / l }, speed: 1.7, life: 400, r: 8,
         color: C.rust, homing: 0.012,
       });
+    }
+
+    /* The gaze. The eye fixes on you and a sightline follows you across the
+       room, turning only so fast; then it holds still for a beat — that beat
+       is the tell — and a lance of fast bolts goes down it. A hard change of
+       direction late in the stare leaves it looking at where you were.
+       Enraged, two more lances flank the first. */
+    if (!f.gaze) {
+      if (f.pt % (enraged ? 170 : 236) === 150) {
+        f.gaze = 1;
+        f.gazeA = Math.atan2(pc.y - c.y, pc.x - c.x);
+      }
+    } else {
+      f.gaze++;
+      if (f.gaze <= ECL_GAZE) {
+        let d = Math.atan2(pc.y - c.y, pc.x - c.x) - f.gazeA;
+        while (d > Math.PI) d -= TAU;
+        while (d < -Math.PI) d += TAU;
+        f.gazeA += clamp(d, -0.045, 0.045);
+      } else if (f.gaze === ECL_GAZE + 1) {
+        sfx("stare");
+      }
+      const fire = f.gaze - ECL_GAZE - ECL_GAZE_LOCK;
+      if (fire > 0 && fire % 2 === 0) {
+        for (const off of enraged ? [-0.2, 0, 0.2] : [0]) {
+          const a = f.gazeA + off;
+          emit(c.x + Math.cos(a) * 22, c.y + Math.sin(a) * 22, {
+            aim: { x: Math.cos(a), y: Math.sin(a) },
+            speed: 6.8, life: 140, r: 3.6, color: C.ember,
+          });
+        }
+        if (fire === 2) {
+          shake(5);
+          sfx("shootHeavy");
+          burst(c.x + Math.cos(f.gazeA) * 22, c.y + Math.sin(f.gazeA) * 22, 14, C.bone, 3, 22);
+        }
+      }
+      if (fire >= ECL_GAZE_FIRE) f.gaze = 0;
+    }
+
+    // alone, it throws a sun of its own: a black one
+    if (alone) {
+      if (f.pt % 210 === 100) f.sunUp = ECL_SUN_UP;
+      if (f.sunUp > 0 && --f.sunUp === 0) launchSun(f, c, pc, true, true);
     }
   }
 
@@ -16434,6 +16659,49 @@ function drawFoeShots() {
        filled: a white heart, a corona, and a ring of flame turning on it. */
     if (s.sun) {
       const t = s.life * 0.05;
+      /* It is quick now, so it leaves a wake: two fading copies of its glow
+         behind it, longer the faster it goes, so the heading reads at once. */
+      const sp = Math.hypot(s.vx, s.vy);
+      if (sp > 0.5) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        for (let k = 1; k <= 2; k++) {
+          ctx.fillStyle = s.dark ? "rgba(158,43,69,0.1)" : "rgba(214,198,60,0.1)";
+          fillDisc(s.x - s.vx * k * 7, s.y - s.vy * k * 7, r * (1 - k * 0.12));
+        }
+        ctx.restore();
+      }
+      /* The survivor's sun: a hole the shape of one, ringed in the dark one's
+         fire. Drawn apart from the bright one so the two can never be read
+         as each other. */
+      if (s.dark) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        const dh = ctx.createRadialGradient(s.x, s.y, r * 0.85, s.x, s.y, r * 2.2);
+        dh.addColorStop(0, "rgba(255,150,120,0.85)");
+        dh.addColorStop(0.22, "rgba(158,43,69,0.55)");
+        dh.addColorStop(1, "rgba(158,43,69,0)");
+        ctx.fillStyle = dh;
+        fillDisc(s.x, s.y, r * 2.2);
+        ctx.strokeStyle = "rgba(255,170,140,0.7)";
+        ctx.lineWidth = 2.4;
+        for (let i = 0; i < 14; i++) {
+          const a = (i / 14) * TAU - t * 0.5;
+          const len = r * (1.04 + 0.26 * Math.abs(Math.sin(t * 1.3 + i)));
+          strokeLine(s.x + Math.cos(a) * r, s.y + Math.sin(a) * r, s.x + Math.cos(a) * len, s.y + Math.sin(a) * len);
+        }
+        ctx.restore();
+        const dc = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, r);
+        dc.addColorStop(0, "#000000");
+        dc.addColorStop(0.78, "#07030a");
+        dc.addColorStop(1, "#3a0f1e");
+        ctx.fillStyle = dc;
+        fillDisc(s.x, s.y, r);
+        ctx.strokeStyle = C.ember;
+        ctx.lineWidth = 2.4;
+        strokeRing(s.x, s.y, r);
+        continue;
+      }
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       const halo = ctx.createRadialGradient(s.x, s.y, 2, s.x, s.y, r * 2.6);
@@ -19527,17 +19795,29 @@ function drawGravityField() {
    is a hole with an eye in it, ringed by tendrils that writhe on their own
    clocks. Both are drawn well outside their boxes, and both change completely
    between sealed and open — the whole fight is reading which is which, so the
-   difference has to be visible from anywhere on the screen. */
+   difference has to be visible from anywhere on the screen. A totality seals
+   both, and is drawn that way: the only bright thing left is the corona. */
+
+// how strongly a totality is showing, 0..1: in as they meet, out as they part
+function totalityGlow(tot) {
+  if (tot <= 0) return 0;
+  if (tot < ECL_TOT_MEET) return tot / ECL_TOT_MEET;
+  if (tot < ECL_TOT_PART) return 1;
+  return Math.max(0, 1 - (tot - ECL_TOT_PART) / (ECL_TOT - ECL_TOT_PART));
+}
 
 function drawEclipse(f) {
   const c = centerOf(f);
   const light = f.role === "radiance";
-  const open = f.open;
+  const tot = eclipseTotality(f);
+  const open = f.open && !tot;
   const lit = f.hit > 0;
   const t = f.t;
   const swap = f.flare / ECL_SWAP;          // 1 at the moment of the trade
   const wind = f.charge > 0 ? 1 - f.charge / 46 : 0;
   const pulse = 1 + Math.sin(t * 0.06) * 0.05;
+  const twin = eclipseTwin(f);
+  const heir = !twin && !f.dying;           // left alone, carrying both weapons
 
   /* The trade itself: a ring that snaps outward from whichever body just
      took the fight, and a wash of its colour over the whole room. */
@@ -19555,6 +19835,7 @@ function drawEclipse(f) {
 
   if (light) {
     // ---- radiance -------------------------------------------------------
+    if (tot) drawCorona(f, c, tot);
     const reach = open ? 300 : 150;
 
     /* Light thrown across the room. Long soft spokes that sweep, drawn under
@@ -19589,7 +19870,8 @@ function drawEclipse(f) {
 
     /* Wings. Six pairs of tapered shards fanned around the core, each turning
        at its own rate and spreading as it winds up a volley. Sealed, they fold
-       in and go grey — which is the tell that you cannot hurt it. */
+       in and go grey — which is the tell that you cannot hurt it. Left alone
+       it has taken the dark's reach, and the tips burn in the dark's colour. */
     const wings = 6;
     for (let i = 0; i < wings; i++) {
       for (const sx of [-1, 1]) {
@@ -19603,7 +19885,7 @@ function drawEclipse(f) {
         const wg = ctx.createLinearGradient(14, 0, len, 0);
         wg.addColorStop(0, open ? (lit ? "#fff" : C.bone) : C.stone);
         wg.addColorStop(0.5, open ? C.sulfur : C.stoneLit);
-        wg.addColorStop(1, open ? "rgba(214,198,60,0.05)" : "rgba(44,53,49,0.1)");
+        wg.addColorStop(1, open ? (heir ? "rgba(158,43,69,0.45)" : "rgba(214,198,60,0.05)") : "rgba(44,53,49,0.1)");
         ctx.fillStyle = wg;
         ctx.beginPath();
         ctx.moveTo(12, -3.5);
@@ -19623,7 +19905,7 @@ function drawEclipse(f) {
 
     // the ring of glyphs that turns around the core while it is open
     if (open) {
-      ctx.strokeStyle = C.bone;
+      ctx.strokeStyle = heir ? C.rust : C.bone;
       ctx.globalAlpha = 0.35 + wind * 0.5;
       ctx.lineWidth = 2;
       for (let i = 0; i < 12; i++) {
@@ -19665,131 +19947,26 @@ function drawEclipse(f) {
         strokeLine(c.x - 22, c.y - 16 + i * 8, c.x + 22, c.y - 16 + i * 8);
       }
     }
+    // the sphere gathering on the core: light drawn in from the room
+    if (open && f.sunUp > 0 && !f.dying) drawSunGather(c, 1 - f.sunUp / ECL_SUN_UP, false);
 
   } else {
-    // ---- umbra ----------------------------------------------------------
-    const reach = open ? 230 : 130;
-
-    /* Anti-light. A body of dark laid over the room, so the arena dims around
-       it — the opposite move to radiance's spokes and the reason the two read
-       as a pair rather than two monsters. */
-    const dark = ctx.createRadialGradient(c.x, c.y, 4, c.x, c.y, reach);
-    dark.addColorStop(0, "rgba(8,4,10," + (open ? 0.92 : 0.5) + ")");
-    dark.addColorStop(0.45, "rgba(20,8,18," + (open ? 0.55 : 0.22) + ")");
-    dark.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = dark;
-    fillDisc(c.x, c.y, reach);
-
-    /* Tendrils. Each is a three-segment curve with its own phase, so the mass
-       writhes instead of spinning. They reach further and flush hot while it
-       winds up a lash. */
-    /* Tendrils. Drawn as smooth curves through a run of points rather than
-       straight segments between them, and tapering along their length, so
-       they read as something soft reaching rather than a jointed leg. They
-       reach a long way — far enough to cross most of the room when it is
-       open, which is what makes the dark half feel like it is coming for you
-       instead of sitting there. */
-    const arms = 13;
-    for (let i = 0; i < arms; i++) {
-      const a = (i / arms) * TAU + Math.sin(t * 0.021 + i) * 0.5;
-      const len = (open ? 230 : 82) *
-                  (0.7 + 0.5 * Math.abs(Math.sin(t * 0.045 + i * 2.1))) * (1 + wind * 0.9);
-
-      // walk a curling path outward, storing the points
-      const pts = [{ x: c.x + Math.cos(a) * 20, y: c.y + Math.sin(a) * 20 }];
-      let ang = a;
-      const segs = 6;
-      for (let k = 1; k <= segs; k++) {
-        // the curl loosens toward the tip, so the base is firm and the end drifts
-        ang += Math.sin(t * 0.075 + i * 1.7 + k * 0.9) * (0.12 + k * 0.06);
-        pts.push({
-          x: pts[k - 1].x + Math.cos(ang) * (len / segs),
-          y: pts[k - 1].y + Math.sin(ang) * (len / segs),
-        });
-      }
-
-      /* Tapered: each span is stroked on its own at a thinner width, which is
-         the cheapest way to get a limb that narrows without building a
-         polygon for it. */
-      ctx.lineCap = "round";
-      for (let pass = 0; pass < 2; pass++) {
-        ctx.strokeStyle = pass === 0
-          ? (wind > 0.4 ? "rgba(158,43,69,0.9)" : "#160b13")
-          : (open ? "rgba(158,43,69,0.45)" : "rgba(69,80,73,0.25)");
-        for (let k = 1; k < pts.length; k++) {
-          const taper = 1 - (k - 1) / segs;
-          ctx.lineWidth = (pass === 0 ? 8 : 3) * (0.18 + taper * 0.82);
-          ctx.beginPath();
-          const prev = pts[k - 1], cur = pts[k];
-          const mid = { x: (prev.x + cur.x) / 2, y: (prev.y + cur.y) / 2 };
-          const back = k > 1 ? pts[k - 2] : prev;
-          ctx.moveTo((back.x + prev.x) / 2, (back.y + prev.y) / 2);
-          ctx.quadraticCurveTo(prev.x, prev.y, mid.x, mid.y);
-          ctx.stroke();
-        }
-      }
-      ctx.lineCap = "butt";
-
-      // the barb on the end
-      const tip = pts[pts.length - 1];
-      ctx.fillStyle = wind > 0.4 ? C.bone : C.ember;
-      ctx.globalAlpha = open ? 0.85 : 0.3;
-      fillDisc(tip.x, tip.y, 3.4);
-      ctx.globalAlpha = 1;
-    }
-
-    // the mass itself: a hole, rimmed so it reads as an object
-    ctx.fillStyle = "#0a050c";
-    fillDisc(c.x, c.y, 27 * pulse);
-    ctx.strokeStyle = open ? C.ember : C.stone;
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-
-    /* The eye. It tracks you, the lid narrows as it winds up, and sealed it
-       closes to a seam — the clearest tell in the fight. */
-    const pcc = centerOf(player);
-    const look = Math.atan2(pcc.y - c.y, pcc.x - c.x);
-    const lid = open ? 1 - wind * 0.55 : 0.08;
-    ctx.save();
-    ctx.translate(c.x, c.y);
-    ctx.rotate(look);
-    // sclera
-    ctx.fillStyle = lit ? C.bone : (open ? "#e2d8bd" : C.stone);
-    fillOval(0, 0, 19, 19 * lid);
-    if (lid > 0.2) {
-      // iris and slit pupil, looking at you
-      const ir = ctx.createRadialGradient(6, 0, 1, 6, 0, 11);
-      ir.addColorStop(0, C.ember);
-      ir.addColorStop(0.6, "#5e1226");
-      ir.addColorStop(1, "#12060c");
-      ctx.fillStyle = ir;
-      fillOval(6, 0, 11, Math.min(11, 19 * lid));
-      ctx.fillStyle = "#05030a";
-      fillOval(7, 0, 3.4, Math.min(9, 17 * lid));
-      // a glint, so it looks wet
-      ctx.fillStyle = "rgba(236,229,206,0.75)";
-      fillDisc(11, -4 * lid, 2.2);
-    }
-    // the lids
-    ctx.strokeStyle = "#140a12";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 19, 19 * lid, 0, 0, TAU);
-    ctx.stroke();
-    ctx.restore();
+    drawUmbra(f, c, open, wind, pulse, tot, heir);
   }
 
   /* The tether. While both live, a cord of their two colours runs between
      them and slackens toward whichever is sealed — one picture that says who
-     currently holds the fight. Drawn once, by the light one. */
-  const twin = eclipseTwin(f);
-  if (light && twin && !f.dying) {
+     currently holds the fight. Drawn once, by the light one, and let go of
+     while they are one body in a totality. */
+  const fade = 1 - totalityGlow(tot);
+  if (light && twin && !f.dying && fade > 0) {
     const tc = centerOf(twin);
     const mid = { x: (c.x + tc.x) / 2, y: (c.y + tc.y) / 2 + 46 + Math.sin(t * 0.03) * 12 };
     const g = ctx.createLinearGradient(c.x, c.y, tc.x, tc.y);
     g.addColorStop(0, "rgba(214,198,60," + (f.open ? 0.75 : 0.2) + ")");
     g.addColorStop(0.5, "rgba(236,229,206,0.25)");
     g.addColorStop(1, "rgba(158,43,69," + (twin.open ? 0.75 : 0.2) + ")");
+    ctx.globalAlpha = fade;
     ctx.strokeStyle = g;
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -19803,11 +19980,569 @@ function drawEclipse(f) {
       const bx = (1 - u) * (1 - u) * c.x + 2 * (1 - u) * u * mid.x + u * u * tc.x;
       const by = (1 - u) * (1 - u) * c.y + 2 * (1 - u) * u * mid.y + u * u * tc.y;
       ctx.fillStyle = u < 0.5 ? C.sulfur : C.ember;
-      ctx.globalAlpha = 0.8;
+      ctx.globalAlpha = 0.8 * fade;
       fillDisc(bx, by, 2.6);
     }
     ctx.globalAlpha = 1;
   }
+}
+
+/* A totality, drawn by the light one underneath its own body so the dark one
+   passes in front of it: the room loses its light, and what is left is a
+   corona round a black disc with streamers coming off it. As they part, a
+   bead of light breaks out on the rim the dark is leaving — the diamond ring —
+   which is also the moment the closing ring of bolts goes. */
+function drawCorona(f, c, tot) {
+  const k = totalityGlow(tot);
+  const e = k * k * (3 - 2 * k);
+  const t = f.t;
+
+  ctx.fillStyle = "rgba(3,2,6," + (0.62 * e).toFixed(3) + ")";
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const cor = ctx.createRadialGradient(c.x, c.y, 26, c.x, c.y, 170);
+  cor.addColorStop(0, "rgba(255,255,255,0)");
+  cor.addColorStop(0.05, "rgba(255,250,235," + (0.95 * e).toFixed(3) + ")");
+  cor.addColorStop(0.18, "rgba(236,229,206," + (0.5 * e).toFixed(3) + ")");
+  cor.addColorStop(0.45, "rgba(214,198,60," + (0.18 * e).toFixed(3) + ")");
+  cor.addColorStop(1, "rgba(214,198,60,0)");
+  ctx.fillStyle = cor;
+  fillDisc(c.x, c.y, 170);
+
+  // streamers: long soft petals, each breathing on its own clock
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * TAU + t * 0.002 + Math.sin(t * 0.01 + i * 1.3) * 0.08;
+    const len = (60 + 90 * Math.abs(Math.sin(i * 2.7 + t * 0.013))) * e;
+    if (len < 2) continue;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const x0 = c.x + ca * 30, y0 = c.y + sa * 30;
+    const g = ctx.createLinearGradient(x0, y0, x0 + ca * len, y0 + sa * len);
+    g.addColorStop(0, "rgba(236,229,206," + (0.5 * e).toFixed(3) + ")");
+    g.addColorStop(1, "rgba(236,229,206,0)");
+    ctx.fillStyle = g;
+    const bend = Math.sin(t * 0.02 + i) * 10;
+    ctx.beginPath();
+    ctx.moveTo(x0 - sa * 6, y0 + ca * 6);
+    ctx.quadraticCurveTo(x0 + ca * len * 0.5 - sa * bend, y0 + sa * len * 0.5 + ca * bend, x0 + ca * len, y0 + sa * len);
+    ctx.quadraticCurveTo(x0 + ca * len * 0.5 - sa * bend, y0 + sa * len * 0.5 + ca * bend, x0 + sa * 6, y0 - ca * 6);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // the diamond ring
+  const bead = clamp(1 - Math.abs(tot - (ECL_TOT_PART + 6)) / 22, 0, 1);
+  if (bead > 0) {
+    const bx = c.x - 26, by = c.y - 15;
+    const bg = ctx.createRadialGradient(bx, by, 1, bx, by, 34 * bead);
+    bg.addColorStop(0, "rgba(255,255,255," + bead.toFixed(3) + ")");
+    bg.addColorStop(0.3, "rgba(236,229,206," + (0.6 * bead).toFixed(3) + ")");
+    bg.addColorStop(1, "rgba(214,198,60,0)");
+    ctx.fillStyle = bg;
+    fillDisc(bx, by, 34 * bead);
+    ctx.fillStyle = "rgba(255,255,255," + (0.7 * bead).toFixed(3) + ")";
+    const g1 = 70 * bead;
+    ctx.beginPath();
+    ctx.moveTo(bx - g1, by); ctx.lineTo(bx, by - 2.5);
+    ctx.lineTo(bx + g1, by); ctx.lineTo(bx, by + 2.5);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(bx, by - g1 * 0.6); ctx.lineTo(bx + 2.5, by);
+    ctx.lineTo(bx, by + g1 * 0.6); ctx.lineTo(bx - 2.5, by);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* A sphere gathering before it goes: a ring closing on the body from out in
+   the room, and the sphere itself swelling where the ring is headed. `g`
+   runs 0..1 over the wind-up. The dark one's gathers as a hole. */
+function drawSunGather(c, g, dark) {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.strokeStyle = dark
+    ? "rgba(255,150,120," + (0.2 + 0.6 * g).toFixed(3) + ")"
+    : "rgba(236,229,206," + (0.2 + 0.6 * g).toFixed(3) + ")";
+  ctx.lineWidth = 2 + g * 3;
+  strokeRing(c.x, c.y, 26 + (1 - g) * 120);
+  if (!dark) {
+    const sg = ctx.createRadialGradient(c.x, c.y, 1, c.x, c.y, 10 + g * 50);
+    sg.addColorStop(0, "rgba(255,255,255," + (0.9 * g).toFixed(3) + ")");
+    sg.addColorStop(0.5, "rgba(214,198,60," + (0.5 * g).toFixed(3) + ")");
+    sg.addColorStop(1, "rgba(192,86,46,0)");
+    ctx.fillStyle = sg;
+    fillDisc(c.x, c.y, 10 + g * 50);
+  }
+  ctx.restore();
+  if (dark) {
+    ctx.fillStyle = "rgba(0,0,0," + (0.55 * g).toFixed(3) + ")";
+    fillDisc(c.x, c.y, 30 + g * 26);
+  }
+}
+
+/* Umbra, drawn. A hole in the room with an eye in it, and everything reads
+   outward from the eye: the socket it sits in, the lit rim of the hole, a
+   ring of stolen light turning round it, the dark it lays over the room and
+   the tendrils. Open, the eye tracks you, blinks, narrows as it winds up a
+   lash and stares when it means to fire down its sightline. Sealed, it is
+   stitched shut and the ring goes grey. Worn low, more eyes open round it;
+   left alone, the sun is in its iris. */
+function drawUmbra(f, c, open, wind, pulse, tot, heir) {
+  const t = f.t;
+  const lit = f.hit > 0;
+  const k = totalityGlow(tot);
+  const enraged = heir || f.hp < f.maxHp * 0.35;
+  const E = hydraRgb(C.ember), R = hydraRgb(C.rust), S = hydraRgb(C.stoneLit);
+  const pcc = centerOf(player);
+  // a wreck keeps its pose, but not a tell for an attack that will never come
+  const gazing = open && f.gaze > 0 && !f.dying;
+  const look = gazing ? f.gazeA : Math.atan2(pcc.y - c.y, pcc.x - c.x);
+
+  /* Anti-light. A body of dark laid over the room, so the arena dims around
+     it — the opposite move to radiance's spokes and the reason the two read
+     as a pair rather than two monsters. Let go of in a totality, where it
+     would only smother the corona. */
+  const reach = open ? 230 : 130;
+  const dim = 1 - k;
+  if (dim > 0) {
+    const dark = ctx.createRadialGradient(c.x, c.y, 4, c.x, c.y, reach);
+    dark.addColorStop(0, "rgba(8,4,10," + ((open ? 0.92 : 0.5) * dim).toFixed(3) + ")");
+    dark.addColorStop(0.45, "rgba(20,8,18," + ((open ? 0.55 : 0.22) * dim).toFixed(3) + ")");
+    dark.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = dark;
+    fillDisc(c.x, c.y, reach);
+  }
+
+  /* Light falling in. Motes spiral down onto the rim and go out there — the
+     inverse of radiance's spokes. Derived from its own clock, so they cost
+     nothing to keep. */
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const motes = open ? 26 : 10;
+  for (let i = 0; i < motes; i++) {
+    const life = ((t * (0.7 + (i % 5) * 0.09) + i * 41) % 130) / 130;
+    const rr = 34 + (1 - life) * (open ? 150 : 90);
+    const a = i * 2.39996 + life * 2.6;
+    ctx.fillStyle = open ? "rgba(" + (i % 3 ? E : R) + "," + (0.25 + life * 0.6).toFixed(3) + ")"
+                         : "rgba(" + S + "," + (0.12 + life * 0.25).toFixed(3) + ")";
+    fillDisc(c.x + Math.cos(a) * rr, c.y + Math.sin(a) * rr * 0.9, 0.8 + life * 1.6);
+  }
+  ctx.restore();
+
+  /* The sightline. Over the dark it lays on the room, which would swallow
+     it, and under the tendrils and the body it comes out of. */
+  if (gazing) drawGazeLine(f, c, E);
+
+  // the far half of the ring of stolen light, behind the hole
+  umbraRing(c, t, open, k, E, R, S, false);
+
+  /* Tendrils. Drawn as smooth curves through a run of points rather than
+     straight segments between them, and tapering along their length, so
+     they read as something soft reaching rather than a jointed leg. They
+     reach a long way — far enough to cross most of the room when it is
+     open, which is what makes the dark half feel like it is coming for you
+     instead of sitting there. Each carries a row of hooked thorns, a pulse
+     that runs out to the tip, and a claw at the end. In a totality they
+     draw in round the disc. */
+  const arms = 13;
+  const segs = 6;
+  const curl = 1 - 0.55 * k;
+  const pulses = [];
+  for (let i = 0; i < arms; i++) {
+    const a = (i / arms) * TAU + Math.sin(t * 0.021 + i) * 0.5;
+    const len = (open ? 230 : 82) *
+                (0.7 + 0.5 * Math.abs(Math.sin(t * 0.045 + i * 2.1))) * (1 + wind * 0.9) * curl;
+
+    // walk a curling path outward, storing the points
+    const pts = [{ x: c.x + Math.cos(a) * 22, y: c.y + Math.sin(a) * 22 }];
+    let ang = a;
+    for (let j = 1; j <= segs; j++) {
+      // the curl loosens toward the tip, so the base is firm and the end drifts
+      ang += Math.sin(t * 0.075 + i * 1.7 + j * 0.9) * (0.12 + j * 0.06);
+      pts.push({
+        x: pts[j - 1].x + Math.cos(ang) * (len / segs),
+        y: pts[j - 1].y + Math.sin(ang) * (len / segs),
+      });
+    }
+    const width = (j, w) => w * (0.18 + (1 - (j - 1) / segs) * 0.82);
+
+    /* Tapered: each span is stroked on its own at a thinner width, which is
+       the cheapest way to get a limb that narrows without building a
+       polygon for it. A dark hide first, then a hot core down the middle. */
+    ctx.lineCap = "round";
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.strokeStyle = pass === 0
+        ? (wind > 0.4 ? "rgba(" + E + ",0.9)" : "#160b13")
+        : (open ? "rgba(" + E + ",0.55)" : "rgba(" + S + ",0.25)");
+      for (let j = 1; j < pts.length; j++) {
+        ctx.lineWidth = width(j, pass === 0 ? 10 : 3.2);
+        ctx.beginPath();
+        const prev = pts[j - 1], cur = pts[j];
+        const mid = { x: (prev.x + cur.x) / 2, y: (prev.y + cur.y) / 2 };
+        const back = j > 1 ? pts[j - 2] : prev;
+        ctx.moveTo((back.x + prev.x) / 2, (back.y + prev.y) / 2);
+        ctx.quadraticCurveTo(prev.x, prev.y, mid.x, mid.y);
+        ctx.stroke();
+      }
+    }
+    ctx.lineCap = "butt";
+
+    // thorns, hooked back toward the root, alternating sides
+    ctx.fillStyle = "#160b13";
+    for (let j = 2; j < segs; j++) {
+      const p = pts[j], q = pts[j - 1];
+      const dl = Math.hypot(p.x - q.x, p.y - q.y) || 1;
+      const ux = (p.x - q.x) / dl, uy = (p.y - q.y) / dl;
+      const side = (j + i) % 2 ? 1 : -1;
+      const nx = -uy * side, ny = ux * side;
+      const w = width(j, 10) / 2;
+      const spike = 3 + w * 0.9;
+      ctx.beginPath();
+      ctx.moveTo(p.x + ux * 3 + nx * w * 0.5, p.y + uy * 3 + ny * w * 0.5);
+      ctx.lineTo(p.x - ux * 4 + nx * (w + spike), p.y - uy * 4 + ny * (w + spike));
+      ctx.lineTo(p.x - ux * 3 + nx * w * 0.5, p.y - uy * 3 + ny * w * 0.5);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // the claw on the end, turned the way the tendril is heading
+    const tip = pts[segs], pre = pts[segs - 1];
+    ctx.save();
+    ctx.translate(tip.x, tip.y);
+    ctx.rotate(Math.atan2(tip.y - pre.y, tip.x - pre.x));
+    ctx.globalAlpha = open ? 0.92 : 0.35;
+    ctx.fillStyle = wind > 0.4 ? C.bone : C.ember;
+    ctx.beginPath();
+    ctx.moveTo(-3, -2.4);
+    ctx.quadraticCurveTo(5, -3.6, 8, 2);
+    ctx.quadraticCurveTo(3.5, 0.4, -3, 2.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    if (open) {
+      const u = (t * 0.016 + i * 0.37) % 1;
+      const j = Math.min(segs - 1, Math.floor(u * segs));
+      const fr = u * segs - j;
+      pulses.push({
+        x: pts[j].x + (pts[j + 1].x - pts[j].x) * fr,
+        y: pts[j].y + (pts[j + 1].y - pts[j].y) * fr,
+        r: 3.6 * (1 - u * 0.6), a: 0.6 * (1 - u * 0.5),
+      });
+    }
+  }
+  ctx.globalAlpha = 1;
+  if (pulses.length) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (const p of pulses) {
+      ctx.fillStyle = "rgba(255,150,120," + p.a.toFixed(3) + ")";
+      fillDisc(p.x, p.y, p.r);
+    }
+    ctx.restore();
+  }
+
+  // the survivor's black sun, gathering behind the eye
+  if (open && f.sunUp > 0 && !f.dying) drawSunGather(c, 1 - f.sunUp / ECL_SUN_UP, true);
+
+  /* The hole. Black all the way down, with a thin line of light bent round
+     its edge — the event horizon — that burns ember open, grey sealed, and
+     white as the corona in a totality. */
+  const hr = 30 * pulse;
+  const hole = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, hr);
+  hole.addColorStop(0, "#000000");
+  hole.addColorStop(0.72, "#06030a");
+  hole.addColorStop(1, lit ? "#5a1c2e" : "#24101d");
+  ctx.fillStyle = hole;
+  fillDisc(c.x, c.y, hr);
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const rim = k > 0 ? "255,246,222" : open ? E : S;
+  const flick = 0.85 + Math.sin(t * 0.21) * 0.15;
+  ctx.strokeStyle = "rgba(" + rim + "," + ((open ? 0.95 : 0.4) * flick + k * 0.5).toFixed(3) + ")";
+  ctx.lineWidth = 1.8;
+  strokeRing(c.x, c.y, hr + 0.5);
+  ctx.strokeStyle = "rgba(" + rim + "," + (open ? 0.28 : 0.12 + k * 0.3).toFixed(3) + ")";
+  ctx.lineWidth = 6;
+  strokeRing(c.x, c.y, hr + 3.5);
+  ctx.restore();
+
+  // the near half of the ring, across the front of the hole
+  umbraRing(c, t, open, k, E, R, S, true);
+
+  // worn low, more of it wakes: a ring of small eyes round the hole
+  if (enraged && open) {
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * TAU + t * 0.004 + 0.3;
+      const bk = (t + i * 47) % 211;
+      const blink = bk < 8 ? Math.abs(bk - 4) / 4 : 1;
+      drawEye(c.x + Math.cos(a) * 40, c.y + Math.sin(a) * 36, 7, 4 * blink,
+              Math.atan2(pcc.y - c.y, pcc.x - c.x), { E, R, small: true, lit });
+    }
+  }
+
+  /* The eye. An almond, level like a real one, with the iris moving inside
+     it to follow you rather than the whole eye turning. It blinks now and
+     then, narrows as it winds up a lash, and opens wide with the pupil
+     pinched to a thread when it stares down its sightline. Sealed, it is
+     stitched shut; in a totality, light leaks through the stitches. */
+  if (open) {
+    const bk = t % 233;
+    const blink = !gazing && wind === 0 && bk < 10 ? Math.abs(bk - 5) / 5 : 1;
+    const lid = (gazing ? 1.12 : 1 - wind * 0.5) * blink;
+    drawEye(c.x, c.y, 24, 13 * lid, look, {
+      E, R, lit, heir, gazing, locked: gazing && f.gaze > ECL_GAZE, wind, t,
+    });
+  } else {
+    drawShutEye(c.x, c.y, 24, lit, k);
+  }
+}
+
+/* The ring of stolen light round the hole: a tilted ellipse drawn in two
+   halves, the far one before the hole and the near one after it, so it reads
+   as a ring round a sphere rather than a hoop laid on a disc. Flecks ride it
+   round. */
+function umbraRing(c, t, open, k, E, R, S, near) {
+  const rx = 52, ry = 16;
+  const a0 = near ? 0 : Math.PI, a1 = near ? Math.PI : TAU;
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.rotate(-0.24);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.strokeStyle = k > 0 ? "rgba(236,229,206," + (0.12 + 0.3 * k).toFixed(3) + ")"
+                  : open ? "rgba(" + R + ",0.22)" : "rgba(" + S + ",0.12)";
+  ctx.lineWidth = 9;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, rx, ry, 0, a0, a1);
+  ctx.stroke();
+  ctx.strokeStyle = k > 0 ? "rgba(255,246,222," + (0.4 + 0.5 * k).toFixed(3) + ")"
+                  : open ? "rgba(" + E + ",0.85)" : "rgba(" + S + ",0.3)";
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, rx - 2, ry - 1, 0, a0, a1);
+  ctx.stroke();
+  const spin = t * (open ? 0.03 : 0.01);
+  for (let i = 0; i < 9; i++) {
+    const a = ((spin + (i / 9) * TAU) % TAU + TAU) % TAU;
+    if (near ? a >= Math.PI : a < Math.PI) continue;
+    ctx.fillStyle = open || k > 0 ? "rgba(255,190,150,0.8)" : "rgba(" + S + ",0.5)";
+    fillDisc(Math.cos(a) * (rx - 2), Math.sin(a) * (ry - 1), 1.3 + (i % 3) * 0.5);
+  }
+  ctx.restore();
+}
+
+// the almond an eye is drawn in: rx wide, ry tall above and below
+function almond(x, y, rx, ry) {
+  ctx.beginPath();
+  ctx.moveTo(x - rx, y);
+  ctx.quadraticCurveTo(x, y - ry * 2, x + rx, y);
+  ctx.quadraticCurveTo(x, y + ry * 2, x - rx, y);
+  ctx.closePath();
+}
+
+/* One eye: socket, shaded sclera with veins, a striated iris that follows
+   `look`, a slit pupil, glints, a shadow under the upper lid, and the lids
+   themselves with lashes. `h` is how open it is; the small ones on the rim
+   skip the finer work. */
+function drawEye(x, y, w, h, look, o) {
+  const small = !!o.small;
+  // the socket it sits in, a size larger
+  ctx.fillStyle = "#12060d";
+  almond(x, y, w + (small ? 2 : 5), Math.max(h, 1) + (small ? 1.6 : 5));
+  ctx.fill();
+  ctx.strokeStyle = "rgba(" + o.E + ",0.5)";
+  ctx.lineWidth = small ? 0.8 : 1.2;
+  ctx.stroke();
+
+  if (h > 1.2) {
+    ctx.save();
+    almond(x, y, w, h);
+    ctx.clip();
+    // the white, shaded darker toward the corners and under the lid
+    const sc = ctx.createRadialGradient(x, y - h * 0.2, 1, x, y, w);
+    sc.addColorStop(0, o.lit ? "#ffffff" : "#f1e8cf");
+    sc.addColorStop(0.55, o.lit ? "#f4eedd" : "#cdbd9f");
+    sc.addColorStop(1, "#5a3a36");
+    ctx.fillStyle = sc;
+    ctx.fillRect(x - w, y - h * 2, w * 2, h * 4);
+
+    if (!small) {
+      // veins, creeping in from the corners
+      ctx.strokeStyle = "rgba(" + o.E + ",0.5)";
+      ctx.lineWidth = 0.8;
+      for (let i = 0; i < 8; i++) {
+        const side = i % 2 ? 1 : -1;
+        const y0 = y + (((i * 37) % 11) - 5) * h * 0.1;
+        ctx.beginPath();
+        ctx.moveTo(x + side * w, y0);
+        ctx.quadraticCurveTo(x + side * w * 0.72, y0 + ((i % 3) - 1) * h * 0.3,
+                             x + side * w * (0.42 + (i % 4) * 0.05), y0 + ((i % 2) - 0.5) * h * 0.4);
+        ctx.stroke();
+      }
+    }
+
+    // the iris, moving inside the lids toward whatever it watches
+    const ir = small ? 2.8 : 10.5;
+    const ix = x + Math.cos(look) * (w - ir - 1) * 0.62;
+    const iy = y + Math.sin(look) * h * 0.35;
+    const hue = o.heir ? hydraRgb(C.sulfur) : o.E;
+    const irg = ctx.createRadialGradient(ix, iy, 0.5, ix, iy, ir);
+    irg.addColorStop(0, o.gazing ? "rgba(255,236,190,1)" : "rgba(255,206,150,1)");
+    irg.addColorStop(0.3, "rgba(" + o.R + ",1)");
+    irg.addColorStop(0.72, "rgba(" + hue + ",1)");
+    irg.addColorStop(1, "#14060c");
+    ctx.fillStyle = irg;
+    fillDisc(ix, iy, ir);
+
+    if (!small) {
+      // striations, light and dark in turn, and the dark ring round the edge
+      ctx.lineWidth = 0.7;
+      for (let i = 0; i < 20; i++) {
+        const a = (i / 20) * TAU + Math.sin(i * 3.1) * 0.08;
+        ctx.strokeStyle = i % 2 ? "rgba(255,226,180,0.28)" : "rgba(20,4,10,0.4)";
+        strokeLine(ix + Math.cos(a) * ir * 0.38, iy + Math.sin(a) * ir * 0.38,
+                   ix + Math.cos(a) * ir * 0.93, iy + Math.sin(a) * ir * 0.93);
+      }
+      ctx.strokeStyle = "rgba(10,3,7,0.85)";
+      ctx.lineWidth = 1.6;
+      strokeRing(ix, iy, ir - 0.6);
+    }
+
+    /* The pupil: a slit that breathes open at rest, tightens on a wind-up,
+       and pinches to a thread when it stares. */
+    const pw = small ? 0.9
+      : o.gazing ? (o.locked ? 0.9 : 1.6)
+      : Math.max(1, 2.6 + 1.4 * (0.5 + 0.5 * Math.sin(o.t * 0.03)) - o.wind * 1.4);
+    ctx.fillStyle = "#040206";
+    fillOval(ix, iy, pw, ir * 0.86);
+    if (!small) {
+      ctx.strokeStyle = "rgba(255,190,120," + (o.gazing ? 0.85 : 0.35) + ")";
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.ellipse(ix, iy, pw + 0.6, ir * 0.88, 0, 0, TAU);
+      ctx.stroke();
+      // glints, so it looks wet
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      fillOval(ix - 3.6, iy - 4.2, 2.4, 1.7, -0.5);
+      ctx.fillStyle = "rgba(255,255,255,0.5)";
+      fillDisc(ix + 3.4, iy + 3.2, 1);
+    }
+
+    // the upper lid's shadow across the top of the eye
+    const sh = ctx.createLinearGradient(x, y - h, x, y - h * 0.1);
+    sh.addColorStop(0, "rgba(10,3,8,0.7)");
+    sh.addColorStop(1, "rgba(10,3,8,0)");
+    ctx.fillStyle = sh;
+    ctx.fillRect(x - w, y - h * 2, w * 2, h * 1.9);
+    ctx.restore();
+  }
+
+  // the lids: a heavy dark edge all round
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#140a12";
+  ctx.lineWidth = small ? 1.6 : 3.4;
+  almond(x, y, w, Math.max(h, 0.6));
+  ctx.stroke();
+  ctx.lineJoin = "miter";
+  if (small || h <= 1.2) return;
+
+  // a wet line of the dark one's colour along the upper lid
+  ctx.strokeStyle = "rgba(" + o.E + ",0.8)";
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.moveTo(x - w + 2, y - 1);
+  ctx.quadraticCurveTo(x, y - h * 2 - 1.2, x + w - 2, y - 1);
+  ctx.stroke();
+  // lashes: short hooked spines off the upper lid
+  ctx.strokeStyle = "#140a12";
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+  for (let i = 1; i < 8; i++) {
+    const u = i / 8;
+    const px = x + (u * u - (1 - u) * (1 - u)) * w;
+    const py = y + 2 * u * (1 - u) * (-2 * h);
+    const lx = (u - 0.5) * 1.3, len = 4 + 3 * Math.sin(u * Math.PI);
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.quadraticCurveTo(px + lx * len * 0.4, py - len * 0.8, px + lx * len + (u - 0.5) * 3, py - len * 0.9);
+    ctx.stroke();
+  }
+  ctx.lineCap = "butt";
+}
+
+/* Sealed: the lids swollen shut over a seam, with stitches across it, so a
+   closed eye can never be mistaken for one caught mid-blink. */
+function drawShutEye(x, y, w, lit, k) {
+  ctx.fillStyle = "#12060d";
+  almond(x, y, w + 5, 6);
+  ctx.fill();
+  ctx.fillStyle = "#1d0d17";
+  almond(x, y, w, 4.5);
+  ctx.fill();
+  const seam = () => {
+    ctx.beginPath();
+    ctx.moveTo(x - w, y);
+    ctx.quadraticCurveTo(x, y + 5, x + w, y);
+  };
+  ctx.strokeStyle = "#0b0509";
+  ctx.lineWidth = 3.2;
+  seam();
+  ctx.stroke();
+  if (k > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = "rgba(255,220,170," + (0.85 * k).toFixed(3) + ")";
+    ctx.lineWidth = 1.6;
+    seam();
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.strokeStyle = lit ? C.bone : C.stoneLit;
+  ctx.lineWidth = 1.3;
+  for (let i = 0; i < 6; i++) {
+    const u = (i + 0.5) / 6;
+    const sx = x - w + u * 2 * w;
+    const sy = y + 2 * u * (1 - u) * 5;
+    strokeLine(sx - 1.5, sy - 4, sx + 1.5, sy + 4);
+  }
+}
+
+/* The gaze's sightline. While it tracks you it is a thin dashed line crawling
+   outward; locked, it goes solid and flickers white-hot, which is the beat to
+   be somewhere else; firing, it flares for the length of the lance. */
+function drawGazeLine(f, c, E) {
+  const locked = f.gaze > ECL_GAZE;
+  const firing = f.gaze > ECL_GAZE + ECL_GAZE_LOCK;
+  const a = f.gazeA;
+  const x0 = c.x + Math.cos(a) * 20, y0 = c.y + Math.sin(a) * 20;
+  const x1 = c.x + Math.cos(a) * 900, y1 = c.y + Math.sin(a) * 900;
+  ctx.save();
+  ctx.lineCap = "round";
+  if (!locked) {
+    const prog = Math.min(1, f.gaze / ECL_GAZE);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = "rgba(" + E + "," + (0.1 + 0.2 * prog).toFixed(3) + ")";
+    ctx.lineWidth = 6;
+    strokeLine(x0, y0, x1, y1);
+    ctx.strokeStyle = "rgba(255,196,176," + (0.3 + 0.45 * prog).toFixed(3) + ")";
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([12, 9]);
+    ctx.lineDashOffset = -f.t * 1.5;
+    strokeLine(x0, y0, x1, y1);
+    ctx.setLineDash([]);
+  } else {
+    // it flickers, but never so far down that the tell drops out for a frame
+    const flick = firing ? 1 : 0.78 + 0.22 * Math.sin(f.t * 0.9);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = "rgba(" + E + "," + (0.22 * flick).toFixed(3) + ")";
+    ctx.lineWidth = firing ? 16 : 9;
+    strokeLine(x0, y0, x1, y1);
+    ctx.strokeStyle = "rgba(255,236,214," + (0.75 * flick).toFixed(3) + ")";
+    ctx.lineWidth = firing ? 3 : 1.6;
+    strokeLine(x0, y0, x1, y1);
+  }
+  ctx.restore();
 }
 
 /* --- the hydra, drawn ------------------------------------------------- */

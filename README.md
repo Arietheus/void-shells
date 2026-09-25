@@ -543,18 +543,44 @@ covered the long-range case the room stopped turning at all.
 **The eclipse** (drawn at random from wave 25 on, and in boss runs) — light
 and dark, two bodies of one fight. **Only ever one of them is open at a time**:
 the open one attacks and can be hurt, the sealed one turns everything aside.
-Each holds the fight for about fifteen seconds, trading on a shared clock run by the light one, so the two can never drift
-apart or both decide to open on the same frame, and the fight is a rhythm of
-"which of these am I allowed to shoot" rather than a choice of targets. Kill
-one and the survivor stops trading — it stays open for good and fights twice
-as hard.
+Each holds the fight for about fifteen seconds at full health, trading on a
+shared clock run by the light one, so the two can never drift apart or both
+decide to open on the same frame, and the fight is a rhythm of "which of these
+am I allowed to shoot" rather than a choice of targets. The clock runs faster
+as the pair is worn down, to about ten seconds a side when both are nearly
+spent. Each body carries 0.8 of a boss's health, up from 0.72.
+
+**Totality.** Every second trade is a totality instead of a plain swap. The two
+glide together into the middle of the room, the dark crossing in front of the
+light; the room goes dark around a corona and for about three and a half
+seconds **neither can be hurt**. As they touch it throws a ring of both
+colours, then a double spiral while they are one (three arms once the pair is
+past half), and as they part a bead of light breaks out on the rim — the
+diamond ring — with a faster closing ring. It ends in the trade it replaced.
+They meet low enough to clear the banner stamped across the top of the room.
+
+**Left alone**, the survivor stops trading, stays open for good, fights twice
+as hard, and **takes up its twin's weapon** alongside its own: the dark throws
+a black sun of its own (smaller, in its colour), and the light throws a fan of
+bolts straight at you with every ring, so the gap in the wheel is no longer
+safe by default. The dark one's iris turns gold and the light one's wing tips
+burn in the dark's colour, so you can see which has happened.
 
 **Radiance** is a wheel of wings around a white core, throwing real light
 across the room; it fires a full ring of bolts and turns the wheel a notch
 each time, so consecutive volleys never leave the same gap twice. Its heaviest attack is a **sphere** of radius 78 — a sixth of the screen —
-that crosses the room slowly and **bursts wherever it stops**, on a wall, the
-floor, or you, throwing nine shards out of the wreck. It is not a bullet you
-dodge by a pixel and it does not simply miss.
+that crosses the room and **bursts wherever it stops**, on a wall, the
+floor, or you, throwing nine shards out of the wreck (twelve enraged). It is
+not a bullet you dodge by a pixel and it does not simply miss.
+
+It used to cross at a flat 1.7 and was the easiest thing in the fight to wait
+out. Now it **gathers on the core** for a moment first — a ring of light
+closing in, which is the tell, and it is aimed when it leaves rather than when
+it starts to gather — then sets off at 2.2 and **speeds up** to a cap of 3.8
+(4.4 enraged), which gets it across the room in about half the time. It comes
+round more often too, every three seconds instead of nearly four. Its heading
+never changes, so stepping aside still clears it, and it trails a wake so the
+heading reads at a glance.
 
 It hurts with **the whole disc you can see**, not its centre. Every other shot
 in the game is small enough that its centre stands in for it; a sphere this
@@ -569,10 +595,32 @@ so they read as something soft coming for you, and the eye spits a homing
 globe that bends toward you rather than turning on the spot — outrun by
 crossing it, never by running straight.
 
+Its eye now has an attack of its own, **the gaze**. It fixes on you and a
+dashed sightline follows you across the room, turning only so fast; then it
+**locks** — the line goes solid and white-hot and stops moving — and a lance of
+fast bolts goes down it. The lock is the beat to be somewhere else: a hard
+change of direction late in the stare leaves it looking at where you were.
+Enraged, two more lances flank the first.
+
+The dark half has been redrawn around the eye. It is an almond set level in a
+socket, the way a real eye is, with the iris moving inside the lids to follow
+you instead of the whole eye turning; the white is shaded into the corners
+and veined, the iris is striated with a dark ring round it, the slit pupil
+breathes open at rest, tightens on a wind-up and pinches to a thread when it
+stares, and the lids carry a wet ember line and hooked lashes. It blinks now
+and then. The hole it sits in is black all the way down with a line of light
+bent round its edge, a tilted ring of stolen light turns round it (drawn in
+two halves, so it passes behind the hole and across the front of it), and
+motes of light spiral in and go out on the rim. The tendrils carry hooked
+thorns, a pulse that runs out to the tip, and a claw at the end. Worn low, a
+ring of five smaller eyes opens round the hole.
+
 Sealed and open are drawn as completely different objects — radiance folds its
-wings and shutters the core behind plates, umbra closes its eye to a seam —
-because reading which is which *is* the fight. A tether of both colours runs
-between them with beads travelling toward whichever currently holds it.
+wings and shutters the core behind plates, umbra's eye is stitched shut —
+because reading which is which *is* the fight. A totality seals both and is
+drawn that way: the only bright thing left is the corona. A tether of both
+colours runs between them with beads travelling toward whichever currently
+holds it.
 
 Like the lodestone, it never shares a wave: it is already two bodies, and a
 third boss would make its own light-and-dark reading impossible. It is excluded
