@@ -7,7 +7,7 @@ import { watchCanvas, makeOk } from "./probe.mjs";
 import { execFileSync } from "child_process";
 import { fileURLToPath } from "url";
 
-/* One copy of the game per process. The harness evaluates popup.js with an
+/* One copy of the game per process. The harness evaluates the game with an
    indirect eval, which keeps its lets private to each copy but makes every
    function declaration a global — so a second copy loaded beside the first
    quietly takes over every call the first copy makes. The comparisons below

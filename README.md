@@ -1553,6 +1553,7 @@ format is ignored rather than restored into a crash.
 | `popup.html` | HUD, canvas, overlay, control legend |
 | `popup.css` | Palette and layout |
 | `popup.js` | Physics, aiming, weapons, enemies, waves, rendering |
+| `art/` | How every boss (`art/bosses/`) and mob (`art/mobs/`) is drawn, one file each, loaded by `popup.html` ahead of `popup.js` |
 
 The game runs on a fixed 60 Hz timestep with a frame accumulator, so physics
 stays identical on a 144 Hz monitor. Rendering happens once per animation

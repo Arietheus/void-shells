@@ -164,6 +164,36 @@
     <button type="button" class="link" id="open-tab">open big <b>&#8599;</b></button>
   </footer>
 
+  <!-- The boss and mob drawings, one file each. Plain scripts that share the
+       page's scope and only declare things, so they load ahead of popup.js
+       and are drawn with once it is running. tests/harness.mjs loads exactly
+       this list, in this order. -->
+  <script src="art/bosses/presence.js"></script>
+  <script src="art/bosses/maw.js"></script>
+  <script src="art/bosses/anvil.js"></script>
+  <script src="art/bosses/vesper.js"></script>
+  <script src="art/bosses/chorus.js"></script>
+  <script src="art/bosses/bore.js"></script>
+  <script src="art/bosses/lodestone.js"></script>
+  <script src="art/bosses/idol.js"></script>
+  <script src="art/bosses/double.js"></script>
+  <script src="art/bosses/chronarch.js"></script>
+  <script src="art/bosses/requiem.js"></script>
+  <script src="art/bosses/inversion.js"></script>
+  <script src="art/bosses/eclipse.js"></script>
+  <script src="art/bosses/hydra.js"></script>
+  <script src="art/mobs/drifter.js"></script>
+  <script src="art/mobs/harrier.js"></script>
+  <script src="art/mobs/spitter.js"></script>
+  <script src="art/mobs/diver.js"></script>
+  <script src="art/mobs/splitter.js"></script>
+  <script src="art/mobs/spawnling.js"></script>
+  <script src="art/mobs/lancer.js"></script>
+  <script src="art/mobs/warden.js"></script>
+  <script src="art/mobs/seeder.js"></script>
+  <script src="art/mobs/howler.js"></script>
+  <script src="art/mobs/emplacer.js"></script>
+  <script src="art/mobs/censer.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

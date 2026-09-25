@@ -1,10 +1,19 @@
-/* Loads popup.js headless with a real canvas behind it, so a draw actually
+/* Loads the game headless with a real canvas behind it, so a draw actually
    produces pixels and an art bug can be looked at instead of guessed at.
    The stub DOM swallows everything the game touches that isn't the canvas. */
 import fs from "fs";
 import { createCanvas } from "@napi-rs/canvas";
 
-const SRC = new URL("../popup.js", import.meta.url).pathname;
+const ROOT = new URL("..", import.meta.url);
+
+/* The scripts popup.html loads, in the order it loads them: the boss and mob
+   drawings in art/, then popup.js. Read from the page itself rather than
+   listed here, so a test can never run a different set of files from the one
+   the extension ships — a drawing left out of the page fails here too. */
+export function pageScripts() {
+  const html = fs.readFileSync(new URL("popup.html", ROOT), "utf8");
+  return [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*>/g)].map((m) => m[1]);
+}
 
 export function load({ w = 760, h = 440, patch = null } = {}) {
   const canvas = createCanvas(w, h);
@@ -88,10 +97,15 @@ export function load({ w = 760, h = 440, patch = null } = {}) {
   globalThis.AudioContext = undefined;
 
 
-  let src = fs.readFileSync(SRC, "utf8");
-  /* Lets a test rewrite a compile-time constant before the file is evaluated.
+  /* Every script the page loads, joined in its order and evaluated as one.
+     It has to be one eval: a second can't see the first one's lets and
+     consts, and the drawings in art/ draw with popup.js's. */
+  let src = pageScripts().map((f) => fs.readFileSync(new URL(f, ROOT), "utf8")).join("\n");
+  /* Lets a test rewrite a compile-time constant before the game is evaluated.
      The board's BOARD_URL is a const with no setter by design -- it should not
-     be reachable at runtime -- so this is how a test points it at a fake. */
+     be reachable at runtime -- so this is how a test points it at a fake. It
+     is handed every script as one source, so a patch finds its text in
+     whichever file the text lives. */
   if (patch) src = patch(src);
   // the seam: hand back the internals the game otherwise closes over
   const seam = `

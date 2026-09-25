@@ -25,15 +25,19 @@ Everything runs in one page:
 popup.html   the skeleton: a <canvas id="stage">, a HUD header, and the
              panels (pause, forge, settings, postmortem, auxiliary)
 popup.css    all styling for those panels. Does not touch the game itself.
-popup.js     the entire game
+popup.js     the game: everything except how its bosses and mobs look
+art/         how its bosses and mobs look — one file each, in bosses/ and
+             mobs/, loaded ahead of popup.js (see "Art" in §8)
 fonts/       three woff2 faces: display, data, voice
 icons/       toolbar icons
 ```
 
 There is **no build step, no bundler, no framework, no dependencies**. You can
-edit `popup.js`, hit reload on the extension, and see the change. This is a
-deliberate trade: it costs you module boundaries and gives you a codebase that
-never breaks because a toolchain moved.
+edit `popup.js` or a drawing in `art/`, hit reload on the extension, and see
+the change. This is a deliberate trade: it costs you module boundaries and gives
+you a codebase that never breaks because a toolchain moved. The files in `art/`
+are not modules either — they are plain scripts sharing the page's one global
+scope, split out so a creature's look can be found and edited on its own.
 
 The important consequence of being a popup: **the page is destroyed whenever it
 loses focus**. Every session starts cold. That is why the run is serialised to
@@ -240,7 +244,8 @@ row of drifters doesn't flap in lockstep.
 ## 6. Bosses
 
 Fourteen of them, each with a `stepX` and a `drawX` — 33 step functions and 72
-draw functions in total, counting helpers.
+draw functions in total, counting helpers. The steps live in `popup.js`; each
+boss's drawing lives in its own file in `art/bosses/` (see "Art" in §8).
 
 The hydra bends two of the rules here. Its heads are separate foes on the boss
 chassis carrying `neck` and a `host` id — the same trick as the idol's hands
@@ -417,6 +422,50 @@ painted on the ground — drawn over the player it sat on their feet like a
 targeting reticle and made a clear tell hard to read. The shard itself goes in
 front of the fight, because a rock falling *behind* the character is a rock
 that has already missed.
+
+### Art
+
+How every boss and mob looks lives in `art/`, one file per creature:
+`art/bosses/` holds the thirteen bosses plus `presence.js`, the shadow, aura
+and cinders every boss stands in, and `art/mobs/` holds the twelve mob kinds.
+A file is nothing but drawing code — functions that take a foe and paint it
+onto `ctx` with the palette `C` and the shape helpers (`fillDisc`,
+`strokeRing`, `fillOval`, …) that `popup.js` defines.
+
+They are plain scripts, not modules. `popup.html` loads them one after
+another, **ahead of** `popup.js`, and every script shares the page's one global
+scope, so a drawing calls `centerOf` or reads `player` exactly as it did when it
+lived in `popup.js`. Two rules follow from that:
+
+- **Only declarations at the top level.** When an art file runs, `popup.js`
+  hasn't: `ctx`, `C`, the helpers and all of the game's state don't exist yet.
+  A function body can use them freely, because it only runs at draw time, but
+  a top-level `const glow = hydraRgb(C.rust)` throws in a browser. Constant
+  data — a literal table like `BOSS_TONE` — is fine.
+- **One name, one file.** A later script's function silently replaces an
+  earlier one of the same name, so a clash draws the wrong thing rather than
+  failing.
+
+`tests/art.mjs` holds both. It runs each art file in an empty context, which
+catches a top-level reach the other tests can't — the harness evaluates every
+script as one source, where `popup.js`'s functions are hoisted and the reach
+quietly works — and it checks that no name is declared twice, that the page
+loads every file in `art/`, and that every boss and mob kind is drawn by its
+own art.
+
+What stays in `popup.js` is the machinery around the drawings: `drawFoes` and
+its two dispatchers, `drawBossBody` for bosses and `drawMob` for mobs; the swell
+in `drawBoss`; the wrecks, the boss bar and the enemy fire (the eclipse's
+sphere included, drawn with the rest of the projectiles); the hazards; and
+helpers more than one drawing uses, like `hydraRgb`. Anything the game's logic
+reads stays there too even when a drawing reads it as well — `BOSS_SWELL`,
+`WRECK_REACH`, the bore's radii, the eclipse's timings.
+
+To add a creature: write its file in `art/`, add its `<script>` to
+`popup.html` (the tests load exactly that list, in that order), and add its
+line to `drawBossBody` or `drawMob`. `tools/build-dist.mjs` ships the whole
+folder. A boss `drawBossBody` doesn't know falls through to the maw's art and a
+mob `drawMob` doesn't know draws nothing; `tests/art.mjs` catches both.
 
 ### Biomes
 
@@ -724,8 +773,15 @@ The trick that makes them possible: **the game is `eval`'d with a fake DOM.**
 ```js
 globalThis.document = { getElementById: ..., createElement: ... };
 globalThis.window = { addEventListener: ..., devicePixelRatio: 1 };
-eval(fs.readFileSync('popup.js','utf8') + `\nglobalThis.__d = { state, tick, ... };`);
+const src = pageScripts().map(read).join("\n");   // art/*.js, then popup.js
+eval(src + `\nglobalThis.__d = { state, tick, ... };`);
 ```
+
+The scripts are the ones `popup.html` loads, read from the page itself, so a
+test never runs a different set of files from the one the extension ships.
+They are joined in the page's order and evaluated as one source: a second
+`eval` couldn't see the first one's `let`s and `const`s, and the drawings in
+`art/` draw with `popup.js`'s.
 
 The appended line is the seam: it exports internals that are otherwise closed
 over, so a test can reach in and drive them. Two flavours of fake canvas:
@@ -755,6 +811,7 @@ The ones to know:
 | `sweep.mjs` | every arena draws 600 frames without throwing or going non-finite |
 | `wrecks.mjs` | every boss comes apart as one wreck, nothing lands while it burns, the salvage screen waits |
 | `hits.mjs` | any hit restarts the Rig's rebuild; the eclipse's sphere lands with its whole disc |
+| `art.mjs` | each file in `art/` loads on its own ahead of `popup.js`, no name is declared in two scripts, the page loads everything in `art/`, and every boss and mob kind is drawn by its own art |
 | `eclipse.mjs` | the sphere gathers, then speeds up to its cap without turning; every second trade is a totality neither body can be hurt through; the gaze holds still once locked and fires down that line; the survivor takes up its twin's weapon; saves mid-totality carry on |
 | `salvo.mjs` | the Ballast's missiles launch, close on the aim, seek, and survive a save |
 | `tour.mjs` | no door leads back into the cavern you're leaving; repeats come back far apart |
@@ -766,8 +823,8 @@ The ones to know:
 | `hunt.mjs` | the requiem's clock scales with the shell's reach and never shortens; the inversion scuttles, freezes, walks corners and drops on a line |
 | `schema.mjs` | the board's own SQL, run against a real SQLite: one row per player per depth, a database older than the Worker named as such instead of 500ing blindly, and the migration landing on the current schema with its rows intact |
 
-**One copy of the game per process.** The harness loads `popup.js` with an
-indirect `eval`. That keeps the file's `let`s private to each copy but makes
+**One copy of the game per process.** The harness loads the game with an
+indirect `eval`. That keeps the game's `let`s private to each copy but makes
 every `function` declaration a global, so a second copy loaded in the same
 process silently takes over every internal call the first one makes — with
 the second copy's state, which usually hasn't been reset. The failures look
@@ -910,7 +967,8 @@ A route through the file that builds understanding in the right order:
    simple-gravity path first and ignore the frame indirection until it makes
    sense.
 4. **`stepFoes()`** — see the phase-machine pattern at small scale.
-5. **One boss, start to finish.** `stepAnvil` and `drawAnvil` are a good pair:
+5. **One boss, start to finish.** `stepAnvil` in `popup.js` and `drawAnvil` in
+   `art/bosses/anvil.js` are a good pair:
    a clear telegraph, a commit, a recovery, and art that reads its own state.
 6. **`draw()`** — the layer order, then `drawBackdrop` for the biome system.
 7. **`serialize` / `restoreRun`** — what the game considers itself to be.
