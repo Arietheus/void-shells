@@ -20,7 +20,8 @@ const out = path.join(root, "dist", "void-shells");
 /* Everything the extension needs at runtime, and nothing else. If you add a
    file the extension loads, add it here or it will not ship. */
 const FILES = ["manifest.json", "popup.html", "popup.css", "popup.js"];
-const DIRS = ["icons", "fonts"];
+// art/ holds the boss and mob drawings popup.html loads ahead of popup.js
+const DIRS = ["icons", "fonts", "art"];
 
 fs.rmSync(path.join(root, "dist"), { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
