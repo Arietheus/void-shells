@@ -256,8 +256,8 @@ by exactly what came back, so damage already dealt stays dealt. Its body is the 
 flagged `ghost`: it holds the health bar and is never a target, so `nearestFoe`,
 `bulletHits`, the melee sweeps, the disc and dash passes and the falling roof
 shards all skip it, and `damageFoe` refuses it outright until `slayHydra` marks
-it `slain` and puts it through the ordinary death path. It is also the only
-boss drawn in two layers: `drawBossBacks` runs before `drawPlatforms` so the
+it `slain` and puts it through the ordinary death path. It is also one of two
+bosses drawn in two layers — the idol's statue is the other: `drawBossBacks` runs before `drawPlatforms` so the
 body and its necks sit behind the room's ledges — which keeps the platforms
 readable and means a neck crossing the arena can never hide an incoming shot —
 while its heads, stumps and debris draw with the foes, in front.
@@ -454,7 +454,9 @@ loads every file in `art/`, and that every boss and mob kind is drawn by its
 own art.
 
 What stays in `popup.js` is the machinery around the drawings: `drawFoes` and
-its two dispatchers, `drawBossBody` for bosses and `drawMob` for mobs; the swell
+its dispatchers — `drawBossBody` for bosses, `drawMob` for mobs, and
+`drawBossBacks` for the parts of the hydra and the idol drawn behind the
+platforms; the swell
 in `drawBoss`; the wrecks, the boss bar and the enemy fire (the eclipse's
 sphere included, drawn with the rest of the projectiles); the hazards; and
 helpers more than one drawing uses, like `hydraRgb`. Anything the game's logic
@@ -811,6 +813,7 @@ The ones to know:
 | `sweep.mjs` | every arena draws 600 frames without throwing or going non-finite |
 | `wrecks.mjs` | every boss comes apart as one wreck, nothing lands while it burns, the salvage screen waits |
 | `hits.mjs` | any hit restarts the Rig's rebuild; the eclipse's sphere lands with its whole disc |
+| `vent.mjs` | the Ballast's vent: S below a full bar throws it far and badly — never the same landing twice, walls bounce it, planting stops it — and it survives a save |
 | `art.mjs` | each file in `art/` loads on its own ahead of `popup.js`, no name is declared in two scripts, the page loads everything in `art/`, and every boss and mob kind is drawn by its own art |
 | `eclipse.mjs` | the sphere gathers, then speeds up to its cap without turning; every second trade is a totality neither body can be hurt through; the gaze holds still once locked and fires down that line; the survivor takes up its twin's weapon; saves mid-totality carry on |
 | `salvo.mjs` | the Ballast's missiles launch, close on the aim, seek, and survive a save |

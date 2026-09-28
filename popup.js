@@ -2321,6 +2321,7 @@ function reset() {
     fireCd: 0, nadeCd: 0, dashCd: 0, dashT: 0, dashX: 1, dashY: 0,
     flash: 0, dropThru: 0, spinLockT: 0,
     charge: 0, plantT: 0, webT: 0,
+    ventT: 0, ventCd: 0, ventA: 0, ventH: 0, ventSeed: 0, ventPow: 1, ventMax: 0, ventHic: 0,
     shield: 0, shieldT: 0, dashHits: [],
     st: { ...BASE, ...(D().base || {}) },
     taken: {},
@@ -2677,6 +2678,11 @@ const SFX = {
     tone({ wave: "sine", freq: 700, to: 90, dur: 0.9, vol: 0.3 * v });
     tone({ noise: true, filter: "bandpass", cut: 2400, cutTo: 200, q: 4, dur: 0.9, vol: 0.18 * v });
   } },
+  /* The Ballast's vent: the reactor coughing out through its back plates. */
+  vent:    { cap: 2,  make: (v) => {
+    tone({ noise: true, filter: "lowpass", cut: 1400, cutTo: 160, dur: 0.42, vol: 0.3 * v });
+    tone({ wave: "sawtooth", freq: 70, to: 150, dur: 0.3, vol: 0.14 * v });
+  } },
   web:     { cap: 2,  make: (v) => {
     tone({ noise: true, filter: "bandpass", cut: 900, cutTo: 380, q: 5, dur: 0.22, vol: 0.16 * v });
   } },
@@ -2795,6 +2801,122 @@ function setMusicVol(v) {
 
 /* --- player --------------------------------------------------------- */
 
+/* The Ballast's vent. `S` with a full capacitor is the shock; below full it
+   dumps the reactor out through the back plates instead, and the one shell
+   built never to move is thrown across the room by it. It is a lurch rather
+   than a dash, and deliberately a bad one to steer:
+
+     it never leaves quite where you aimed — the heading comes out up to a
+       fifth of a turn off — and never with quite the same force
+     it heaves the shell off whatever it is standing on, by a different
+       amount every time
+     while it burns the heading bucks on its own, and every few frames the
+       reactor hiccups and jolts it sideways, so the path bends and kinks
+     it ignores the run speed limit: your keys lean on it, they don't drive
+     walls, ceilings and the screen's edges throw it back instead of stopping
+       it, so a vent into a corner caroms
+     when the burn ends the body skids on before the ground takes it back
+
+   Planting cancels it — rooting is the one hard stop the Ballast has, so
+   the answer to a vent going wrong is to drop anchor. It costs no charge;
+   the price is the cooldown and wherever it leaves you. */
+const VENT_TIME = 40;      // frames it has hold of you
+const VENT_BURN = 20;      // of which it is still firing; the rest is skid
+const VENT_CD = 84;
+const VENT_KICK = 6.4;     // the first cough
+const VENT_THRUST = 0.3;   // added every frame while it burns
+/* Its top speed, scaled by how hard this one coughed and held under 14 — a
+   step shorter than the shell is tall, so no vent can skip a floor between
+   two frames. */
+const VENT_MAX = 11.5;
+const VENT_SCATTER = 0.38; // how far off the aim it can leave, either way
+const VENT_HEAVE = [1.4, 3.8];  // the lift off the ground, least to most
+const VENT_HICCUP = 2.4;   // a jolt, at full strength
+const VENT_BOUNCE = 0.6;   // what a wall hands back
+
+/* On level ground a vent that only scattered its heading came out the same
+   every time: the floor soaked up the up-and-down part of the scatter and the
+   speed cap evened out the rest, leaving a fast, perfectly predictable dash.
+   The uneven strength, the heave and the hiccups are what make it lurch. */
+
+function startVent(p, ix) {
+  let dx = ix;
+  let dy = (down() ? 1 : 0) - (up() ? 1 : 0);
+  let screen = null;
+  if (mouseAim && !dx && !dy) screen = aimVector();
+  if (!dx && !dy && !screen) dx = p.face;
+  // key intent is in the player's frame, so it turns with the world
+  if (!screen) screen = gravVec(dx, dy);
+  const a = Math.atan2(screen.y, screen.x) + rand(-VENT_SCATTER, VENT_SCATTER);
+  p.ventA = a;
+  p.ventH = a;
+  p.ventSeed = rand(0, TAU);
+  p.ventPow = rand(0.7, 1.3);
+  p.ventMax = clamp(VENT_MAX * p.ventPow, 8.5, 14);
+  p.ventHic = Math.floor(rand(3, 7));
+  p.ventT = VENT_TIME;
+  p.ventCd = VENT_CD;
+  const heave = gravVec(0, -1);
+  const lift = rand(VENT_HEAVE[0], VENT_HEAVE[1]);
+  p.vx += Math.cos(a) * VENT_KICK * p.ventPow + heave.x * lift;
+  p.vy += Math.sin(a) * VENT_KICK * p.ventPow + heave.y * lift;
+  const c = centerOf(p);
+  burst(c.x - Math.cos(a) * 9, c.y - Math.sin(a) * 9, 16, C.sulfur, 4.2, 22);
+  burst(c.x - Math.cos(a) * 9, c.y - Math.sin(a) * 9, 8, C.rust, 3, 26);
+  shake(5);
+  sfx("vent");
+}
+
+/* One frame of a vent, in place of ordinary running. Gravity still applies
+   after it, so a vent aimed up arcs over rather than flying. */
+function stepVent(p, st, runIn, rV) {
+  const age = VENT_TIME - p.ventT;
+  p.ventT--;
+  if (age < VENT_BURN) {
+    const pow = p.ventPow || 1;
+    const a = p.ventA + Math.sin(age * 0.7 + p.ventSeed) * 0.5 + rand(-0.22, 0.22);
+    p.ventH = a;
+    p.vx += Math.cos(a) * VENT_THRUST * pow;
+    p.vy += Math.sin(a) * VENT_THRUST * pow;
+    // the reactor hiccups: a jolt well off the heading, at no fixed interval
+    if (--p.ventHic <= 0) {
+      const j = a + rand(-1.6, 1.6);
+      p.vx += Math.cos(j) * VENT_HICCUP * pow;
+      p.vy += Math.sin(j) * VENT_HICCUP * pow;
+      p.ventHic = Math.floor(rand(4, 9));
+      shake(1.5);
+      const c = centerOf(p);
+      burst(c.x - Math.cos(j) * 9, c.y - Math.sin(j) * 9, 5, C.sulfur, 3, 16);
+    }
+    if (age % 2 === 0) {
+      const c = centerOf(p);
+      burst(c.x - Math.cos(a) * 10, c.y - Math.sin(a) * 10, 2, age % 4 ? C.rust : C.sulfur, 2.2, 14);
+    }
+  } else {
+    // spent: the body skids on, and the ground only slowly takes it back
+    p[rV] *= p.onGround ? 0.9 : 0.97;
+  }
+  // you can lean on it, but not steer it
+  if (runIn !== 0) p[rV] += runIn * st.runAccel * 0.18;
+  const top = p.ventMax || VENT_MAX;
+  const sp = Math.hypot(p.vx, p.vy);
+  if (sp > top) {
+    p.vx *= top / sp;
+    p.vy *= top / sp;
+  }
+}
+
+/* What a surface does to a venting Ballast: throws it back. Anything else —
+   or a vent too slow to be worth a bounce — stops dead, as it always has. */
+function ventBounce(p, v) {
+  if (!(p.ventT > 0) || Math.abs(v) < 1.2) return 0;
+  const c = centerOf(p);
+  burst(c.x, c.y, 6, C.bone, 2.4, 14);
+  shake(2.5);
+  sfx("land");
+  return -v * VENT_BOUNCE;
+}
+
 function stepPlayer() {
   const p = player;
   const st = p.st;
@@ -2812,6 +2934,7 @@ function stepPlayer() {
   if (p.fireCd > 0) p.fireCd--;
   if (p.nadeCd > 0) p.nadeCd--;
   if (p.dashCd > 0) p.dashCd--;
+  if (p.ventCd > 0) p.ventCd--;
   if (p.flash > 0) p.flash--;
   if (p.dropThru > 0) p.dropThru--;
   if (p.spinLockT > 0) p.spinLockT--;
@@ -2860,6 +2983,7 @@ function stepPlayer() {
       p.plantT = st.plantTime;
       p.dashCd = st.plantCd;
       p.vx = 0;
+      p.ventT = 0;             // dropping anchor is the one way to stop a vent
       burst(p.x + p.w / 2, p.y + p.h, 14, C.stoneLit, 3, 24);
       shake(4);
       /* Rooting also lets a salvo go from the pods on its back. Rippled
@@ -3022,6 +3146,8 @@ function stepPlayer() {
        gSign is +1 and every line below is the original arithmetic verbatim. */
     if (p.plantT > 0) {
       p[rV] = 0;
+    } else if (p.ventT > 0) {
+      stepVent(p, st, runIn, rV);
     } else if (runIn !== 0) {
       // silk on your legs: you still move, but you fight it
       const drag = p.webT > 0 ? 0.42 : 1;
@@ -3115,6 +3241,8 @@ function stepPlayer() {
     } else if (p[gV] * gSign < 0) {
       // met it head-first
       p[gAxis] = gSign > 0 ? s[gAxis] + s[gSize] : s[gAxis] - p[gSize];
+      p[gV] = ventBounce(p, p[gV]);
+      continue;
     }
     p[gV] = 0;
   }
@@ -3127,12 +3255,13 @@ function stepPlayer() {
   for (const s of platforms) {
     if ((!s.solid && !turned) || !overlaps(p, s)) continue;
     p[rAxis] = p[rV] > 0 ? s[rAxis] - p[rSize] : s[rAxis] + s[rSize];
-    p[rV] = 0;
+    p[rV] = ventBounce(p, p[rV]);
   }
 
   if (!turned) {
+    if (p.ventT > 0 && (p.x < 0 || p.x > W - p.w)) p.vx = ventBounce(p, p.vx);
     p.x = clamp(p.x, 0, W - p.w);
-    if (p.y < 0) { p.y = 0; p.vy = 0; }
+    if (p.y < 0) { p.y = 0; p.vy = ventBounce(p, p.vy); }
   } else {
     /* Turned, the arena is a closed box: you run within it, and the wall the
        pull is aimed at is simply the floor. The vertical bounds are the real
@@ -3140,6 +3269,7 @@ function stepPlayer() {
        ceiling doesn't put you behind the health bar. */
     const lo = { x: 0, y: CEIL_TOP };
     const hi = { x: W - p.w, y: FLOOR_TOP - p.h };
+    if (p.ventT > 0 && (p[rAxis] < lo[rAxis] || p[rAxis] > hi[rAxis])) p[rV] = ventBounce(p, p[rV]);
     p[rAxis] = clamp(p[rAxis], lo[rAxis], hi[rAxis]);
     if (p[gAxis] < lo[gAxis]) {
       p[gAxis] = lo[gAxis];
@@ -3256,6 +3386,9 @@ function stepPlayer() {
     if (nading() && p.nadeCd <= 0 && p.charge >= st.chargeMax) {
       releaseShock();
       p.nadeCd = st.nadeCd;
+    } else if (nading() && p.charge < st.chargeMax && !(p.ventCd > 0) && p.plantT <= 0) {
+      // below a full capacitor, S vents instead — see startVent
+      startVent(p, ix);
     }
   } else if (st.weapon === "rig") {
     if (nading() && p.nadeCd <= 0 && st.turretMax > 0) {
@@ -15655,6 +15788,36 @@ function drawBallast(p, c, a) {
     ctx.globalAlpha = 1;
   }
 
+  /* A vent burning: a ragged cone of exhaust out of its back, pointing away
+     from wherever the thrust is shoving it this frame — so you can see the
+     heading buck. It sputters rather than streams, and gutters out as the
+     burn ends. */
+  const burn = (p.ventT || 0) - (VENT_TIME - VENT_BURN);
+  if (burn > 0) {
+    const k = burn / VENT_BURN;
+    const back = p.ventH + Math.PI;
+    const ox = c.x + Math.cos(back) * 6, oy = c.y + Math.sin(back) * 6;
+    const len = (14 + 16 * k) * (0.75 + 0.25 * Math.abs(Math.sin(p.ventT * 2.3)));
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.rotate(back);
+    ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createLinearGradient(0, 0, len, 0);
+    g.addColorStop(0, "rgba(255,244,214,0.95)");
+    g.addColorStop(0.3, C.sulfur);
+    g.addColorStop(1, "rgba(192,86,46,0)");
+    ctx.fillStyle = g;
+    for (const [w, l] of [[6.5, 1], [3.2, 0.6]]) {
+      ctx.beginPath();
+      ctx.moveTo(0, -w);
+      ctx.quadraticCurveTo(len * l * 0.55, -w * 0.9 + Math.sin(p.ventT * 1.7) * 2, len * l, 0);
+      ctx.quadraticCurveTo(len * l * 0.55, w * 0.9 + Math.sin(p.ventT * 2.1) * 2, 0, w);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   // squat, wide frame
   ctx.fillStyle = C.stoneLit;
   ctx.fillRect(p.x - 1, p.y + p.h - 7, 7, 7);
@@ -16696,6 +16859,20 @@ function drawMob(f) {
 
 const BOSS_SWELL = 1.16;   // how much larger it draws than it hits
 
+/* Drawn before the platforms: the parts of a boss that stand behind the
+   room, so a ledge still reads in front of them. The hydra's body and necks,
+   and the idol's statue. A wreck keeps its back until it is gone. */
+function drawBossBacks() {
+  for (const f of foes) {
+    if (f.boss === "hydra" && f.neck === undefined) drawHydraBack(f);
+    if (f.boss === "idol" && f.hand === undefined) drawIdolBack(f);
+  }
+  for (const w of wrecks) {
+    if (w.f.boss === "hydra") drawHydraBack(w.f);
+    if (w.f.boss === "idol" && w.f.hand === undefined) drawIdolBack(w.f);
+  }
+}
+
 /* Every boss is drawn by its own file in art/bosses/. A type missing from
    here falls through to the maw's art, which tests/art.mjs catches. */
 function drawBossBody(f) {
@@ -17587,7 +17764,10 @@ function paintHud() {
     (v) => { ui.diffTag.textContent = v; });
   hudSet("score", state.score, (v) => { ui.score.textContent = v; });
   hudSet("best", state.best, (v) => { ui.best.textContent = v; });
-  hudSet("nade", player.nadeCd > 0, (v) => { ui.cdNade.classList.toggle("cooling", v); });
+  // the Ballast's S is the vent until its capacitor fills, and cools with it
+  const venting = player.st.weapon === "ballast" && player.charge < player.st.chargeMax;
+  hudSet("nade", venting ? player.ventCd > 0 : player.nadeCd > 0,
+    (v) => { ui.cdNade.classList.toggle("cooling", v); });
   if (player.st.weapon === "whip") {
     const cap = binds.dash.length ? keyLabel(binds.dash[0]) : "shift";
     hudSet("dash", "w:" + cap + ":" + player.airWarps, () => {
