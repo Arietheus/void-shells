@@ -7,15 +7,10 @@ function hydraAccent(temper) {
   return temper === "flame" ? C.sulfur : temper === "venom" ? C.mint : C.ember;
 }
 
-/* Drawn before the platforms. The hydra's body stands behind the room and so
-   do its necks: a ledge still reads in front of it, and no shot is ever lost
-   behind a neck crossing the arena. Heads, stumps and everything that comes
-   loose are drawn with the foes, in front. */
-function drawBossBacks() {
-  for (const f of foes) if (f.boss === "hydra" && f.neck === undefined) drawHydraBack(f);
-  for (const w of wrecks) if (w.f.boss === "hydra") drawHydraBack(w.f);
-}
-
+/* The hydra's body and necks, drawn before the platforms by drawBossBacks:
+   it stands behind the room, so a ledge still reads in front of it and no
+   shot is ever lost behind a neck crossing the arena. Heads, stumps and
+   everything that comes loose are drawn with the foes, in front. */
 function drawHydraBack(f) {
   const cr = hydraCrown(f);
   const cx = cr.x, top = cr.y;

@@ -86,6 +86,19 @@ game can shove it, which changes how you hold a position.
   spends a full charge on a shockwave that damages everything nearby and
   wipes incoming fire out of the air. Defence and offence are the same
   resource.
+- **`S` below a full charge vents it.** The reactor dumps out through the
+  back plates and throws the one shell built never to move across the room —
+  roughly 250 to 380px in two-thirds of a second, where it runs about 100 —
+  and it is deliberately a bad throw to steer. It leaves up to a fifth of a
+  turn off your aim, never with quite the same force, and heaves you off the
+  ground by a different amount each time. While it burns the heading bucks
+  and the reactor hiccups, jolting you sideways at no fixed interval, and your
+  keys only lean on it: holding the opposite way barely slows it. Walls and
+  the ceiling throw it back instead of stopping it, and it skids on after the
+  burn. It costs no charge — the price is a cooldown of about a second and a
+  half, and wherever it leaves you. **Planting stops it dead**: rooting is the
+  one hard stop the Ballast has, so dropping anchor is the answer to a vent
+  going wrong. With a full charge `S` is still the shock.
 - **`shift` plants it** — rooted in place, plate all the way round, so it
   blocks from every side. On release it drives the floor and sends crests out
   both ways that hurt enemies rather than you.
@@ -634,15 +647,32 @@ the shell is heavy bolted bands that read as restraint, and when it splits the
 bands break and molten seams run out of the core. The eye is sunk in a socket
 with a ring around it, so there is obviously a place to shoot.
 
-**The idol** — carved rather than smudged. It used to be a pale silhouette
-with a lamp in its chest; now it is a mass with an edge you can follow, lit
-down one side by whatever light the cavern has, with fluting down the torso, a
-mantle of plates over the shoulders, a socket ringed and notched around the
-core, a mask with a brow and a cut mouth, and a crown of votive shards turning
-around its head. The cracks that open as its bar empties stay *in* the stone
-now — they used to run past its edge and hang in the air beside it — and its
-hands got knuckle plates, chipped edges and a seam lit by the same core, so
-they read as part of the same body.
+**The idol** — a statue standing behind the room. Its body is drawn before the
+platforms, the way the hydra's is, so the ledges read in front of it. Drawn in
+front of them, as it used to be, it had to be a pale translucent ghost or it
+would have hidden the ledges you stand on; behind them it can be a dark,
+carved monument and still never compete with the fight:
+- **The statue:** lit down one side by whatever light the cavern has and in
+  shadow on the other, with folds cut down the robe (each a dark groove with
+  a lit lip), a stepped plinth of dressed stone, and two rows of overlapping
+  plates across the shoulders.
+- **The chest:** a socket ringed twice and notched around the core.
+- **The head:** a stone nimbus behind it and a crown of votive shards turning
+  around it. The mask is set in a pointed hood, with a brow cut in a V,
+  almond sockets with the eyes burning in them (they still follow you) and a
+  mouth that is only a cut.
+- **The core:** a faceted eye with a slit that narrows as the bar empties.
+- **Damage:** the cracks that open as its bar empties stay in the stone, the
+  mask splits down one eye, and when it dies the statue sinks and fades with
+  the wreck instead of vanishing at the end.
+
+The hands are carved from the same stone: four jointed fingers and a thumb
+with gilt nails, a banded cuff, and on the back an eye lit by the core. They
+open flat behind a mint ring of runes to guard, close into a claw to strike,
+and flash bone-white on the swipe. The eye and the cuff's edge turn mint
+while guarding, so a hand's job reads at a glance. Each hangs from its own
+shoulder on a chain. Hung from the chest, the chains crossed straight over
+the core.
 
 Both hands keep their own clock and act on it, so it can cover
 the core with one and reach for you with the other at the same time. It used

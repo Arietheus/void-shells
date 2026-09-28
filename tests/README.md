@@ -13,6 +13,7 @@ node tests/hydra.mjs
 node tests/pose.mjs
 node tests/hits.mjs
 node tests/art.mjs
+node tests/vent.mjs
 node tests/eclipse.mjs
 node tests/salvo.mjs
 node tests/tour.mjs
@@ -52,6 +53,7 @@ at it, not by an assertion.
 | `hydra.mjs` | heads are parts of one fight, nothing touches the body, every head has the same tier-set health, the bar is what's left to cut and climbs when a stump grows back, severed necks sear away for good, the crown caps at six, the last neck burnt out is the only kill and pays once, its fire burns to the wall, and it draws clean in every arena |
 | `pose.mjs` | how a shell carries itself can't change a run (never rolls the game's dice, never saved), is no transform at all at rest, gives each shell its own weight (the Ballast lands heavier, flinches less and fires its boots where the Warp Shell flips), and every shell draws clean through everything it does |
 | `hits.mjs` | any hit restarts the Rig's eight-second rebuild; the eclipse's sphere lands with its whole disc, and the plate and spin still answer it |
+| `vent.mjs` | the Ballast's vent: below a full bar S vents and with a full bar it is still the shock; it carries the shell more than twice as far as it runs in the same time, and holding a direction doesn't clamp it; the same press lands somewhere different almost every time, by a real margin, and holding the other way barely checks it; walls throw it back; it costs no charge, holds its cooldown, can't start while planted, and planting stops it dead; saves mid-vent, and from before it existed, carry on; every frame of it draws clean |
 | `art.mjs` | the page loads the drawings first and `popup.js` last, and every file in `art/`; each art file loads on its own in an empty context, the way a browser runs it before `popup.js` exists (the harness can't show this: it evaluates everything as one source, where `popup.js`'s functions are hoisted); no name is declared in two scripts, since a browser lets a later function quietly replace an earlier one; every mob kind draws something and every boss is drawn by its own art rather than falling through to the maw |
 | `eclipse.mjs` | each body carries its raised health share; the sphere gathers on the core before it exists, never changes heading, only speeds up and holds at its cap; the first trade is a plain swap and the second a totality in which neither body can be hurt, which throws its spiral and ends in the trade it replaced; the trade comes sooner as the pair is worn down; the gaze turns only so fast, holds still while locked and fires straight down the locked line (three lances enraged); whichever is left alone opens for good and takes up its twin's weapon; a save taken mid-totality, or before any of this existed, carries on; and every state draws clean. Writes a contact sheet to `ECLIPSE_SHEET` |
 | `salvo.mjs` | the Ballast's missiles ripple out, close on the aim, burst, seek without chasing armour, launch right under a turned pull, and survive saves old and new |
