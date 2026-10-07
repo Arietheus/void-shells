@@ -168,6 +168,15 @@ const BASE = {
   missileBlast: 40,   // radius of the burst where it lands
   missileBlastDmg: 3,
   seeker: 0,          // 1 once the heads hunt
+
+  /* The Herd Shell's beasts. Real values, for the same reason as the salvo's:
+     restoreRun fills a parked run's missing stats from here. */
+  biteDmg: 2,         // the hound's bite
+  goreDmg: 5,         // the boar's tusks
+  dartDmg: 1,         // each of the swift's two darts
+  flaps: 4,           // the swift's wingbeats before it has to land
+  packBite: 0,        // what a sleeping beast's snap does to whatever wakes it
+  stampede: 0,        // what arriving in a beast does to whatever is round it
 };
 
 /* Two shells, two completely different rhythms. `tune` runs after the
@@ -257,6 +266,20 @@ const CHARACTERS = [
       st.bulletSize = 4;
       st.dashCd = st.plantCd;
       st.nadeCd = 20;
+    },
+  },
+  {
+    id: "herd", name: "Herd Shell",
+    note: "Never moves. You fight as the beasts it keeps.",
+    tune: (st) => {
+      st.weapon = "herd";
+      /* S is the leap between beasts, and it is the shell's real movement,
+         so it comes round quickly. */
+      st.nadeCd = 34;
+      // the swift's darts; the bite and the gore set their own cadence
+      st.bulletSpeed = 9;
+      st.bulletSize = 3;
+      st.bulletLife = 46;
     },
   },
 ];
@@ -2251,7 +2274,7 @@ let bests = {};
 /* Slag is what a run is worth once it's over: banked score plus a bounty per
    boss. It buys the other shells and it unlocks upgrades into the pool, so a
    bad run still moves something forward. */
-const SHELL_COST = { warp: 45, rig: 110, ballast: 190 };
+const SHELL_COST = { warp: 45, rig: 110, ballast: 190, herd: 150 };
 let slag = 0;
 let bought = {};
 
@@ -2322,6 +2345,7 @@ function reset() {
     flash: 0, dropThru: 0, spinLockT: 0,
     charge: 0, plantT: 0, webT: 0,
     ventT: 0, ventCd: 0, ventA: 0, ventH: 0, ventSeed: 0, ventPow: 1, ventMax: 0, ventHic: 0,
+    beast: null, strikeT: 0,    // the Herd Shell: which beast you are in, and its bite or gore
     shield: 0, shieldT: 0, dashHits: [],
     st: { ...BASE, ...(D().base || {}) },
     taken: {},
@@ -2383,6 +2407,8 @@ function reset() {
   state.shake = 0;
   state.spikeT = (D().spikeEvery || 0);
   state.shardT = shardEvery();
+  herd = null;
+  if (player.st.weapon === "herd") setupHerd(true);
   buildWave(1);
 }
 
@@ -2678,6 +2704,11 @@ const SFX = {
     tone({ wave: "sine", freq: 700, to: 90, dur: 0.9, vol: 0.3 * v });
     tone({ noise: true, filter: "bandpass", cut: 2400, cutTo: 200, q: 4, dur: 0.9, vol: 0.18 * v });
   } },
+  /* The Herd Shell's leap into another beast: a breath drawn in, rising. */
+  possess: { cap: 1,  make: (v) => {
+    tone({ wave: "sine", freq: 300, to: 900, dur: 0.22, vol: 0.18 * v, attack: 0.02 });
+    tone({ wave: "triangle", freq: 600, to: 1200, dur: 0.18, vol: 0.08 * v });
+  } },
   /* The Ballast's vent: the reactor coughing out through its back plates. */
   vent:    { cap: 2,  make: (v) => {
     tone({ noise: true, filter: "lowpass", cut: 1400, cutTo: 160, dur: 0.42, vol: 0.3 * v });
@@ -2917,9 +2948,248 @@ function ventBounce(p, v) {
   return -v * VENT_BOUNCE;
 }
 
+/* --- the Herd Shell ------------------------------------------------------
+   The one shell you never steer. It kneels at a cairn where you came into the
+   room — never targeted, never hit — and you fight as the beasts it keeps
+   around the screen instead, one at a time. The beast you are in is the
+   player for every purpose the rest of the game has: enemies hunt it, its
+   core is the one shots test, its hits cost the shell's pips. The others
+   sleep where you left them. S leaps your will into the next one, wherever
+   it is, which makes the leap the shell's real movement: the hound to cross
+   a floor, the swift to take the air, the boar to hold a spot.
+
+   Each beast changes how you move by layering over the shell's stats when
+   they are read (beastStats), never by writing to them, so every upgrade you
+   take carries into every beast. */
+const BEAST_ORDER = ["hound", "swift", "boar"];
+const HERD_GRACE = 14;         // frames you can't be hit on arriving in a beast
+
+let herd = null;               // { post, beasts: [{ kind, x, y, w, h, vy, face, t, snap, cd }], leap }
+
+function beastStats(p) {
+  const st = p.st;
+  if (!st || st.weapon !== "herd" || !p.beast) return st;
+  const o = Object.create(st);
+  if (p.beast === "hound") {
+    // quick and light: the one for crossing ground
+    o.runMax = st.runMax + 0.9;
+    o.runAccel = st.runAccel + 0.15;
+    o.jumps = st.jumps + 1;
+    o.dashDmg = st.dashDmg + 2;          // a pounce bites what it goes through
+  } else if (p.beast === "swift") {
+    /* It flies. Gravity barely has it, it glides down rather than falling,
+       and every jump is a wingbeat — a short one, so climbing the room is a
+       run of them rather than a single leap. It has to land to get its
+       wingbeats back. */
+    o.runMax = st.runMax + 0.3;
+    o.jumps = st.jumps + st.flaps - 1;
+    o.glide = 0.28;
+    o.maxFall = 2.4;
+    o.hopV = -4.6;
+  } else if (p.beast === "boar") {
+    // slow, earthbound and immovable: the one for holding a place
+    o.runMax = st.runMax - 0.7;
+    o.runAccel = st.runAccel - 0.12;
+    o.jumps = 1;
+    o.noKnock = true;
+    o.dashDmg = st.dashDmg + 3;          // the charge gores everything in its way
+    o.dashTime = Math.round(st.dashTime * 1.8);
+    o.dashSpeed = st.dashSpeed - 2;
+  }
+  return o;
+}
+
+// first standing place under x, or null over a hole in the world
+function herdGround(x, fromY) {
+  const s = surfaceUnder(x, fromY);
+  return s > FLOOR_TOP + 1 ? null : s;
+}
+
+/* Where a sleeping beast goes in a new room: out toward one side, on the
+   first stone under it, nudged along until there is stone to be on. */
+function herdSpot(frac) {
+  for (let i = 0; i < 12; i++) {
+    const x = clamp(W * frac + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 26, 12, W - 27);
+    if (herdGround(x + 7.5, CEIL_TOP + 30) !== null) return x;
+  }
+  return W * frac;
+}
+
+/* `fresh` starts the herd over — a new run, the hound first. Otherwise the
+   beasts it already has are carried into the room you have just entered:
+   the keeper kneels a step from where you came in and the sleepers drop in at
+   either side. */
+function setupHerd(fresh) {
+  const p = player;
+  if (fresh || !herd) {
+    p.beast = "hound";
+    herd = { post: null, beasts: [], leap: null };
+    for (const kind of BEAST_ORDER) {
+      if (kind !== p.beast) herd.beasts.push({ kind, x: 0, y: 0, w: 15, h: 21, vy: 0, face: 1, t: 0, snap: 0, cd: 0 });
+    }
+  }
+  herd.post = { x: clamp(p.x + 30, 10, W - 25), y: p.y, w: 15, h: 21, vy: 0 };
+  herd.leap = null;
+  herd.beasts.forEach((b, i) => {
+    b.x = herdSpot(i ? 0.8 : 0.2);
+    b.y = CEIL_TOP + 30;
+    b.vy = 0;
+    b.face = b.x < W / 2 ? 1 : -1;
+  });
+}
+
+// a sleeper or the keeper settles onto whatever is under it, and is carried by it
+function herdSettle(b) {
+  b.vy = Math.min((b.vy || 0) + GRAVITY, MAX_FALL);
+  b.y += b.vy;
+  const ground = herdGround(b.x + b.w / 2, b.y + b.h / 2);
+  if (ground === null) {
+    // nothing under it at all: it comes back to the keeper rather than out of the world
+    if (b.y > FLOOR_TOP && herd.post && b !== herd.post) { b.x = herd.post.x; b.y = herd.post.y - 30; b.vy = 0; }
+    return;
+  }
+  if (b.y + b.h >= ground) { b.y = ground - b.h; b.vy = 0; }
+}
+
+function stepHerd() {
+  if (!herd || state.freeze > 0) return;
+  const st = player.st;
+  herdSettle(herd.post);
+  for (const b of herd.beasts) {
+    b.t++;
+    herdSettle(b);
+    if (b.snap > 0) b.snap--;
+    /* Pack sense: a sleeper snaps at whatever comes close enough to wake it,
+       so a beast left on a ledge is a guard on that ledge. */
+    if (st.packBite > 0 && --b.cd <= 0) {
+      const c = centerOf(b);
+      const f = foes.find((g) => !g.ghost && Math.hypot(clamp(c.x, g.x, g.x + g.w) - c.x, clamp(c.y, g.y, g.y + g.h) - c.y) < 30);
+      if (f) {
+        b.face = centerOf(f).x > c.x ? 1 : -1;
+        meleeHit(f, st.packBite, c);
+        b.snap = 9;
+        b.cd = 54;
+      } else {
+        b.cd = 6;
+      }
+    }
+  }
+  if (herd.leap && ++herd.leap.t > 18) herd.leap = null;
+}
+
+/* The leap: your will goes into the next beast round, wherever it stands,
+   and the one you leave goes to sleep where it is. */
+function swapBeast(p, st) {
+  if (!herd || !herd.beasts.length) return;
+  let next = null;
+  for (let k = 1; k <= BEAST_ORDER.length && !next; k++) {
+    const want = BEAST_ORDER[(BEAST_ORDER.indexOf(p.beast) + k) % BEAST_ORDER.length];
+    next = herd.beasts.find((b) => b.kind === want);
+  }
+  if (!next) return;
+  const from = centerOf(p);
+  herd.beasts[herd.beasts.indexOf(next)] = {
+    kind: p.beast, x: p.x, y: p.y, w: 15, h: 21, vy: 0, face: p.face, t: 0, snap: 0, cd: 20,
+  };
+  p.beast = next.kind;
+  p.x = next.x;
+  p.y = next.y;
+  p.face = next.face || 1;
+  p.vx = 0;
+  p.vy = 0;
+  p.dashT = 0;
+  p.coyote = 0;
+  p.jumps = beastStats(p).jumps;
+  p.iframes = Math.max(p.iframes, HERD_GRACE);
+  p.nadeCd = st.nadeCd;
+  const to = centerOf(p);
+  herd.leap = { x1: from.x, y1: from.y, x2: to.x, y2: to.y, t: 0 };
+  burst(from.x, from.y, 10, C.mint, 2.6, 18);
+  burst(to.x, to.y, 16, C.mint, 3.4, 24);
+  sfx("possess");
+  // stampede: arriving shoves and hurts whatever is standing round the beast
+  if (st.stampede > 0) {
+    for (const f of [...foes]) {
+      if (f.ghost) continue;
+      const t = centerOf(f);
+      const d = Math.hypot(t.x - to.x, t.y - to.y);
+      if (d > 54) continue;
+      damageFoe(f, st.stampede, ((t.x - to.x) / (d || 1)) * 5, ((t.y - to.y) / (d || 1)) * 5 - 2);
+    }
+    shake(4);
+    burst(to.x, to.y, 14, C.bone, 3.8, 20);
+  }
+}
+
+/* A bite or a gore: everything whose box comes within `reach` of the beast,
+   inside `arc` of where it is facing — anything it is already standing in
+   counts whichever way it faces. */
+function beastStrike(p, a, reach, arc, dmg, shove) {
+  const c = centerOf(p);
+  const aim = Math.atan2(a.y, a.x);
+  let landed = 0;
+  for (const f of [...foes]) {
+    if (f.ghost || !foes.includes(f)) continue;
+    const nx = clamp(c.x, f.x, f.x + f.w), ny = clamp(c.y, f.y, f.y + f.h);
+    const dx = nx - c.x, dy = ny - c.y;
+    const d = Math.hypot(dx, dy);
+    if (d > reach) continue;
+    if (d > 4) {
+      let off = Math.atan2(dy, dx) - aim;
+      while (off > Math.PI) off -= TAU;
+      while (off < -Math.PI) off += TAU;
+      if (Math.abs(off) > arc / 2) continue;
+    }
+    meleeHit(f, dmg, c);
+    landed++;
+    if (shove && foes.includes(f) && f.kind !== "boss") {
+      f.vx += a.x * shove;
+      f.vy += a.y * shove - 1.2;
+    }
+  }
+  if (landed) shake(landed > 1 ? 3 : 2);
+  burst(c.x + a.x * reach * 0.7, c.y + a.y * reach * 0.7, 5, C.bone, 2, 12);
+  return landed;
+}
+
+// D, as whichever beast you are in
+function herdAttack(p, st) {
+  if (!firing() || p.fireCd > 0) return;
+  const a = aimVector();
+  const c = centerOf(p);
+  if (p.beast === "swift") {
+    // two darts, fanned a little — quick and light, from range
+    for (let i = 0; i < 2; i++) {
+      const ang = Math.atan2(a.y, a.x) + (i - 0.5) * 0.14 + rand(-0.03, 0.03);
+      bullets.push({
+        mark: false,
+        x: c.x + a.x * 8, y: c.y + a.y * 8,
+        vx: Math.cos(ang) * st.bulletSpeed, vy: Math.sin(ang) * st.bulletSpeed,
+        life: st.bulletLife, dmg: st.dartDmg, size: st.bulletSize,
+        pierce: 0, blast: 0, blastDmg: 0, hitIds: [],
+      });
+    }
+    p.fireCd = 12;      // it flies and fights from range, so it hits the lightest
+    p.flash = 4;
+    sfx("shoot", 0.7);
+  } else if (p.beast === "boar") {
+    // the tusks: slow, heavy, and it throws what it hits
+    beastStrike(p, a, 30, 1.7, st.goreDmg, 6.5);
+    p.fireCd = 30;
+    sfx("shootHeavy");
+  } else {
+    // the bite: close, quick, and a little lunge into it
+    beastStrike(p, a, 26, 1.3, st.biteDmg, 1.5);
+    if (p.onGround) p.vx += p.face * 1.6;
+    p.fireCd = 15;
+    sfx("hit", 1.1);
+  }
+  p.strikeT = 9;
+}
+
 function stepPlayer() {
   const p = player;
-  const st = p.st;
+  const st = beastStats(p);
 
   /* Held. Cooldowns, iframes and regen all stay frozen too — resuming into a
      spent dash and an empty shield would make the stop a punishment for
@@ -2935,6 +3205,7 @@ function stepPlayer() {
   if (p.nadeCd > 0) p.nadeCd--;
   if (p.dashCd > 0) p.dashCd--;
   if (p.ventCd > 0) p.ventCd--;
+  if (p.strikeT > 0) p.strikeT--;
   if (p.flash > 0) p.flash--;
   if (p.dropThru > 0) p.dropThru--;
   if (p.spinLockT > 0) p.spinLockT--;
@@ -3157,9 +3428,11 @@ function stepPlayer() {
       p[rV] *= p.onGround ? FRICTION_GROUND : FRICTION_AIR;
       if (Math.abs(p[rV]) < 0.05) p[rV] = 0;
     }
+    // the Herd Shell's swift glides: lighter gravity and a slow ceiling on its fall
+    const fall = GRAVITY * (st.glide || 1), cap = st.maxFall || MAX_FALL;
     p[gV] = gSign > 0
-      ? Math.min(p[gV] + GRAVITY * gSign, MAX_FALL)
-      : Math.max(p[gV] + GRAVITY * gSign, -MAX_FALL);
+      ? Math.min(p[gV] + fall * gSign, cap)
+      : Math.max(p[gV] + fall * gSign, -cap);
   }
 
   /* Hold down and jump to drop through the ledge you're standing on. This is
@@ -3187,7 +3460,7 @@ function stepPlayer() {
   const feetY = p.y + p.h / 2 + g.gy * p.h / 2;
   if (jumpBuffer > 0 && p.dashT <= 0) {
     if (p.onGround || p.coyote > 0) {
-      p[gV] = JUMP_V * gSign;
+      p[gV] = (st.hopV || JUMP_V) * gSign;      // a swift takes off with a wingbeat
       sfx("jump");
       wakePuff(feetX, feetY);
       p.jumps = st.jumps - 1;
@@ -3195,7 +3468,7 @@ function stepPlayer() {
       jumpBuffer = 0;
       burst(p.x + p.w / 2, p.y + p.h, 5, C.dim, 1.6, 14);
     } else if (p.jumps > 0) {
-      p.vy = HOP_V;
+      p.vy = st.hopV || HOP_V;
       wakePuff(p.x + p.w / 2, p.y + p.h);
       p.jumps--;
       jumpBuffer = 0;
@@ -3318,6 +3591,8 @@ function stepPlayer() {
   // weapons
   if (st.weapon === "whip") {
     swingOrSpin(p, st);
+  } else if (st.weapon === "herd") {
+    herdAttack(p, st);
   } else if (st.weapon === "ballast") {
     if (p.plantT <= 0 && firing() && p.fireCd <= 0) {
       const a = aimVector();
@@ -3402,6 +3677,8 @@ function stepPlayer() {
     }
   } else if (st.weapon === "whip") {
     if (nading() && p.nadeCd <= 0) throwDiscs(p, st);
+  } else if (st.weapon === "herd") {
+    if (nading() && p.nadeCd <= 0) swapBeast(p, st);
   } else if (nading() && p.nadeCd <= 0) {
     const a = aimVector();
     const c = centerOf(p);
@@ -3859,7 +4136,7 @@ function hurtPlayer(fromX) {
 
   sfx("hurt");
   player.iframes = IFRAMES + player.st.ablative;
-  if (!player.st.noKnock) {
+  if (!beastStats(player).noKnock) {
     player.vx += Math.sign(player.x + player.w / 2 - fromX) * 4.5;
     player.vy = -4;
   }
@@ -9068,6 +9345,19 @@ const BALLAST_UPGRADES = [
     apply: (s) => { s.seeker = 1; } },
 ];
 
+const HERD_UPGRADES = [
+  { id: "teeth",    name: "Sharper teeth", desc: "The hound bites and the boar gores harder", max: 3,
+    apply: (s) => { s.biteDmg += 1; s.goreDmg += 2; } },
+  { id: "leash",    name: "Short leash", desc: "Leap between beasts sooner", max: 3,
+    apply: (s) => { s.nadeCd = Math.max(14, s.nadeCd - 7); } },
+  { id: "thermals", name: "Thermals", desc: "The swift beats its wings twice more, and its darts fly further", max: 2,
+    apply: (s) => { s.flaps += 2; s.bulletLife += 12; } },
+  { id: "pack",     name: "Pack sense", desc: "Sleeping beasts snap at whatever comes close", max: 3,
+    apply: (s) => { s.packBite += 2; } },
+  { id: "stampede", name: "Stampede", desc: "Arriving in a beast throws back whatever is round it", max: 3,
+    apply: (s) => { s.stampede += 2; } },
+];
+
 /* These are held back until bought. They're the ones that change how a build
    plays rather than nudging a number, so having them arrive as a decision
    rather than a random offer is worth the wait. */
@@ -9447,10 +9737,11 @@ function upgradePool() {
   }
   if (CH().id === "rig") return common.concat(RIG_UPGRADES);
   if (CH().id === "ballast") return common.concat(BALLAST_UPGRADES);
+  if (CH().id === "herd") return common.concat(HERD_UPGRADES);
   return COMMON_UPGRADES;
 }
 
-const UPGRADES = COMMON_UPGRADES.concat(WARP_UPGRADES, RIG_UPGRADES, BALLAST_UPGRADES);
+const UPGRADES = COMMON_UPGRADES.concat(WARP_UPGRADES, RIG_UPGRADES, BALLAST_UPGRADES, HERD_UPGRADES);
 
 function loadoutText() {
   const owned = upgradePool()
@@ -10960,6 +11251,7 @@ function enterDoor(chosen) {
   player.vx = 0;
   player.vy = 0;
   player.dropThru = 0;
+  if (herd) setupHerd(false);              // the keeper and its sleepers come too
 
   state.wave++;
   checkUnlocks();
@@ -11252,7 +11544,7 @@ function serialize() {
     wave: state.wave, score: state.score, map: state.map,
     diff: state.diff, char: state.char, event: state.event || null,
     kills: state.kills, bossKills: state.bossKills, frames: state.frames,
-    discs, wakes, quakes, spikes, shards, drones, turrets, platT: state.platT,
+    discs, wakes, quakes, spikes, shards, drones, turrets, herd, platT: state.platT,
     choosing: state.choosing,
     offers: state.offers.map((u) => u.id),
     doorOpen: state.doorOpen,
@@ -11318,6 +11610,7 @@ function restoreRun(data) {
   state.platT = data.platT || 0;
   drones = data.drones || [];
   turrets = data.turrets || [];
+  herd = data.herd || null;
   platforms = LAYOUTS[state.map] || LAYOUTS[0];
   buildBackdrop(state.map);
 
@@ -11327,6 +11620,8 @@ function restoreRun(data) {
      stat means that upgrade was never taken, so its stock (zero-effect) value
      is exactly right, and nothing downstream reads undefined. */
   if (player && player.st) player.st = { ...BASE, ...player.st };
+  // a Herd Shell parked without its herd (or before the herd existed) gets a fresh one
+  if (player && player.st && player.st.weapon === "herd" && (!herd || !player.beast)) setupHerd(true);
   foes = data.foes || [];
   /* Never saved: a wreck is only something to look at, so a reload in the
      middle of one loses the show and nothing else — the kill, the score and
@@ -11951,6 +12246,7 @@ function draw() {
   drawFoes();
   drawWrecks();
   drawSeekerLocks();
+  drawHerd();
   if (state.running || player.hp > 0) drawPlayer();
   drawQuakes();
   drawSpikes();
@@ -12300,6 +12596,15 @@ function drawTitleScene() {
     ctx.globalAlpha = have ? (chosen ? 1 : 0.8) : 0.3;
     ctx.fillRect(x - 3 * k, y + 3 * k, 9 * k, 2);
     ctx.globalAlpha = have ? (chosen ? 1 : 0.88) : 0.42;
+
+    // the Herd Shell never stands alone: its hound sleeps at its feet
+    if (sp.cfg.id === "herd") {
+      ctx.save();
+      ctx.translate(x + 18 * k, sp.y + bob);
+      ctx.scale(k, k);
+      drawHound({ x: -7.5, y: -21, w: 15, h: 21, face: -1, t }, false);
+      ctx.restore();
+    }
 
     if (chosen) {
       ctx.fillStyle = C.sulfur;
@@ -15766,6 +16071,126 @@ function drawTurrets() {
   }
 }
 
+/* --- the Herd Shell, drawn ------------------------------------------------
+   The beasts themselves are in art/beasts/. Here: which one to draw, the
+   keeper kneeling at its cairn, the sleepers, and the leash — a thread of the
+   keeper's lantern-light out to the beast you are in, so in a busy room you
+   can always find both ends of yourself. */
+function drawBeast(kind, b, live) {
+  if (kind === "swift") return drawSwift(b, live);
+  if (kind === "boar") return drawBoar(b, live);
+  return drawHound(b, live);
+}
+
+function drawHerd() {
+  if (!herd || !player || player.st.weapon !== "herd") return;
+  const p = player;
+  const k = herd.post;
+  const kc = centerOf(k);
+  const pc = centerOf(p);
+  const fk = pc.x >= kc.x ? 1 : -1;
+  const lantern = { x: kc.x + fk * 10, y: k.y - 9 };
+  const leap = herd.leap ? 1 - herd.leap.t / 18 : 0;
+
+  // the leash, sagging, with beads of light running out along it
+  const mid = { x: (lantern.x + pc.x) / 2, y: Math.max(lantern.y, pc.y) + 26 };
+  ctx.save();
+  ctx.strokeStyle = "rgba(127,196,168," + (0.16 + leap * 0.4).toFixed(3) + ")";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(lantern.x, lantern.y);
+  ctx.quadraticCurveTo(mid.x, mid.y, pc.x, pc.y);
+  ctx.stroke();
+  ctx.fillStyle = C.mint;
+  for (let i = 0; i < 3; i++) {
+    const u = ((animNow() * 0.0004 + i / 3) % 1);
+    ctx.globalAlpha = 0.5 * Math.sin(u * Math.PI);
+    fillDisc((1 - u) * (1 - u) * lantern.x + 2 * (1 - u) * u * mid.x + u * u * pc.x,
+             (1 - u) * (1 - u) * lantern.y + 2 * (1 - u) * u * mid.y + u * u * pc.y, 1.6);
+  }
+  ctx.globalAlpha = 1;
+  // the leap itself: a bright streak from the beast you left to the one you took
+  if (herd.leap) {
+    const L = herd.leap;
+    ctx.strokeStyle = "rgba(127,196,168," + (0.8 * leap).toFixed(3) + ")";
+    ctx.lineWidth = 1 + leap * 3;
+    strokeLine(L.x1, L.y1, L.x2, L.y2);
+  }
+  ctx.restore();
+
+  for (const b of herd.beasts) drawBeast(b.kind, b, false);
+  drawKeeper(k, fk, lantern, leap);
+}
+
+/* The shell itself: kneeling at its cairn with a crook, a lantern hung from
+   the crook, and its face turned toward whichever beast it is in. It is
+   built from the same suit as the other shells — helm, visor, cape — so it
+   reads as a shell that has knelt down, and your aura and crest are worn
+   here, because this is still you. */
+function drawKeeper(k, fk, lantern, leap) {
+  const kc = centerOf(k);
+  const x = kc.x, by = k.y + k.h;
+  drawAura(k, kc);
+
+  // the cairn it kneels by
+  ctx.fillStyle = C.stone;
+  fillOval(x - fk * 10, by - 3, 7, 3.5);
+  ctx.fillStyle = C.stoneLit;
+  fillOval(x - fk * 10, by - 7, 5, 3);
+  fillOval(x - fk * 9.5, by - 10.5, 3.4, 2.4);
+
+  // the cape, the kneeling legs, the torso
+  ctx.fillStyle = "rgba(90,102,94,0.85)";
+  ctx.beginPath();
+  ctx.moveTo(x - fk * 4, by - 15);
+  ctx.quadraticCurveTo(x - fk * 10, by - 8, x - fk * 7, by - 1);
+  ctx.lineTo(x - fk * 1, by - 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = C.stone;
+  ctx.fillRect(x - 5, by - 4, 9, 4);               // the shin it kneels on
+  ctx.fillStyle = C.stoneLit;
+  ctx.fillRect(x + fk * 2 - 2, by - 8, 4, 8);      // the knee it holds up
+  const suit = ctx.createLinearGradient(x + fk * 6, 0, x - fk * 6, 0);
+  suit.addColorStop(0, C.bone);
+  suit.addColorStop(1, "#6d685c");
+  ctx.fillStyle = suit;
+  ctx.fillRect(x - 5.5, by - 15, 11, 9);
+  ctx.fillStyle = "rgba(23,28,26,0.55)";
+  ctx.fillRect(x - 5.5, by - 11, 11, 1.4);
+  // helm and visor, turned toward the beast
+  ctx.fillStyle = C.bone;
+  ctx.fillRect(x - 4.5, by - 21, 9, 6.5);
+  ctx.fillStyle = C.stoneLit;
+  ctx.fillRect(x - 4.5, by - 21, 9, 1.4);
+  ctx.fillStyle = C.pit;
+  ctx.fillRect(x + (fk > 0 ? -1 : -5), by - 19.4, 6, 3.2);
+  ctx.fillStyle = C.mint;
+  ctx.fillRect(x + (fk > 0 ? 0 : -4), by - 18.6, 4, 1.4);
+
+  // the crook, and the lantern hung from it
+  ctx.strokeStyle = C.stoneLit;
+  ctx.lineWidth = 1.6;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(x + fk * 7, by);
+  ctx.lineTo(x + fk * 7, by - 28);
+  ctx.arc(x + fk * 9.5, by - 28, 2.5, Math.PI, fk > 0 ? 0.1 : TAU - 0.1, fk < 0);
+  ctx.stroke();
+  ctx.lineCap = "butt";
+  const glow = ctx.createRadialGradient(lantern.x, lantern.y, 0.5, lantern.x, lantern.y, 16 + leap * 22);
+  glow.addColorStop(0, "rgba(127,196,168," + (0.55 + leap * 0.4).toFixed(3) + ")");
+  glow.addColorStop(1, "rgba(127,196,168,0)");
+  ctx.fillStyle = glow;
+  fillDisc(lantern.x, lantern.y, 16 + leap * 22);
+  ctx.fillStyle = C.stone;
+  ctx.fillRect(lantern.x - 2.4, lantern.y - 3, 4.8, 6);
+  ctx.fillStyle = C.mint;
+  ctx.fillRect(lantern.x - 1.4, lantern.y - 2, 2.8, 4);
+
+  drawCrest({ x: k.x, y: by - 21, w: k.w, h: 21 }, { x, y: by - 10 });
+}
+
 function drawBallast(p, c, a) {
   const st = p.st;
   const planted = p.plantT > 0;
@@ -16034,6 +16459,9 @@ const POSE_BUILD = {
              bob: 0.5, breath: 0.6, blinkEvery: 320, blinkLen: 13, blinks: 1, waddle: 0.07, heavy: true },
   whip:    { squash: 0.7, maxSquash: 0.22, stretch: 1.4, k: 0.42, damp: 0.6, lean: 1.35, flinch: 1.5,
              bob: 1.25, breath: 1.4, blinkEvery: 173, blinkLen: 14, blinks: 2, bounce: true },
+  // the Herd Shell's beasts: animals on four legs or two wings lean little and bound a lot
+  herd:    { squash: 1.1, maxSquash: 0.26, stretch: 0.9, k: 0.36, damp: 0.64, lean: 0.4, flinch: 1.2,
+             bob: 1.5, breath: 1.1, blinkEvery: 190, blinkLen: 8, blinks: 1 },
 };
 
 function poseBuild(p) {
@@ -16335,7 +16763,7 @@ function drawPlayer() {
     ctx.translate(-cc.x, -cc.y);
   }
 
-  if (p.dashT > 0) {
+  if (p.dashT > 0 && p.st.weapon !== "herd") {
     ctx.globalAlpha = 0.22;
     ctx.fillStyle = p.st.dashDmg > 0 ? C.sulfur : C.bone;
     for (let i = 1; i <= 3; i++) {
@@ -16346,6 +16774,18 @@ function drawPlayer() {
 
   const a = aimVector();
   const c = centerOf(p);
+
+  /* The Herd Shell: what you are driving is the beast, not the shell, so the
+     beast is what is drawn here. The shell's aura and crest go on the keeper
+     at its cairn instead (drawHerd), since that is still you. */
+  if (p.st.weapon === "herd") {
+    drawBeast(p.beast, p, true);
+    if (p.st.shieldMax > 0) drawShield(p, c);
+    drawCore(c);
+    if (shaped) ctx.restore();
+    ctx.globalAlpha = 1;
+    return;
+  }
 
   drawAura(p, c);
 
@@ -17801,6 +18241,7 @@ function tick() {
     stepDiscs();
     stepDrones();
     stepTurrets();
+    stepHerd();
     stepQuakes();
     stepFoes();
     stepWrecks();

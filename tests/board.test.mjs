@@ -7,6 +7,7 @@
    a string. Both files pass their own tests and the feature is still broken.
 
    Run with: node tests/board.test.mjs */
+import fs from "fs";
 import { load } from "./harness.mjs";
 
 let fails = 0;
@@ -65,7 +66,11 @@ ok(sent[0].url.endsWith("/v1/score"), "to the score route");
 /* Now judge it with the server's real validator, imported from the server
    package. If these two ever drift, this is where it shows. */
 const { LIMITS, MAX_WAVE } = await import("../server/src/limits.js");
-const SHELLS = ["shell", "warp", "rig", "ballast"];
+/* The server's own list of shells, read out of its source rather than copied
+   here: a copy is exactly the thing that drifts. index.js can't be imported
+   in Node (it is a Worker), so the one line is lifted out of the file. */
+const serverSrc = fs.readFileSync(new URL("../server/src/index.js", import.meta.url), "utf8");
+const SHELLS = JSON.parse(/^const SHELLS = (\[[^\]]*\]);$/m.exec(serverSrc)[1]);
 
 const problems = [];
 const num = (k) => typeof body[k] === "number" && Number.isInteger(body[k]) && body[k] >= 0;

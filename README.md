@@ -24,7 +24,7 @@ at wave 10, then Rig Shell at wave 25.
 
 ## Shells
 
-Four playable characters, all available from the first run. Gating three
+Five playable characters, all available from the first run. Gating three
 quarters of the roster behind wave clears made the game smaller rather than
 longer, so the `UNLOCK_AT` table is empty — putting entries back in it
 reinstates the gate if you ever want one.
@@ -165,6 +165,46 @@ skein (the aerial spin bites more often). It never sees gun upgrades, and the
 Shell never sees these — anything about the body rather than the weapon
 (health, jumps, legs, shield, arc discharge, ablative plating, salvage magnet)
 is common to both.
+
+**Herd Shell** — the one shell you never steer. It kneels at a cairn where you
+come into the room, holding a crook with a lantern hung from it, and it never
+moves; enemies don't hunt it and nothing can hit it. You fight as **the beasts
+it keeps** instead, one at a time:
+
+| Beast | Moves | `D` | `shift` |
+| --- | --- | --- | --- |
+| **Hound** | Fast, with a double jump | **Bite** — close and quick, with a little lunge into it | **Pounce**, biting what it goes through |
+| **Swift** | Flies: every jump is a wingbeat (four before it has to land), and it glides down slowly rather than falling | **Darts**, two at a time, from range | **Dive** |
+| **Boar** | Slow, earthbound, and **can't be knocked back** | **Gore** — heavy, and it throws what it hits | **Charge**, long, goring everything in its way |
+
+- **The beast you are in is you** for every purpose the rest of the game
+  has. Enemies come for it rather than the keeper, its core is the one shots
+  test, and its hits cost the shell's pips.
+- **`S` leaps into the next beast** (hound, swift, boar, round again),
+  wherever it is in the room. The leap is the shell's real movement: the
+  hound for crossing a floor, the swift for the air, the boar for holding a
+  spot. It comes round about every half second, you land with a moment's
+  grace, and the beast you leave goes to sleep exactly where it stood, so
+  where you leave each one is part of the plan.
+- **The other two sleep** in a faint pool of the keeper's light, with a mint
+  `z` drifting up now and then. A thread of light, the leash, runs from the
+  keeper's lantern to the beast you are in, so in a busy room you can always
+  find both ends of yourself.
+- **A new room** brings the herd along: the keeper kneels by where you came
+  in, and the sleepers drop in at either side onto whatever stone is there.
+- The beast you are driving is drawn pale, like the shell itself; sleepers
+  are in the room's own stone. Each wears a band of mint, the colour kept
+  for things on your side. Your aura and crest are worn by the keeper, since
+  that is still you.
+
+Each beast changes how you move by layering over the shell's stats when they
+are read, never by writing to them, so every upgrade you take carries into
+every beast. The Herd Shell gets its own pool: Sharper teeth (the hound bites
+and the boar gores harder), Short leash (leap sooner), Thermals (the swift
+beats its wings twice more and its darts fly further), Pack sense (a sleeper
+snaps at whatever comes close enough to wake it, so a beast left on a ledge
+guards that ledge), and Stampede (arriving in a beast throws back whatever is
+round it). Like the Warp, Rig and Ballast, it never sees the gun's upgrades.
 
 ## Depths
 
@@ -1583,7 +1623,7 @@ format is ignored rather than restored into a crash.
 | `popup.html` | HUD, canvas, overlay, control legend |
 | `popup.css` | Palette and layout |
 | `popup.js` | Physics, aiming, weapons, enemies, waves, rendering |
-| `art/` | How every boss (`art/bosses/`) and mob (`art/mobs/`) is drawn, one file each, loaded by `popup.html` ahead of `popup.js` |
+| `art/` | How every boss (`art/bosses/`), mob (`art/mobs/`) and the Herd Shell's beasts (`art/beasts/`) are drawn, one file each, loaded by `popup.html` ahead of `popup.js` |
 
 The game runs on a fixed 60 Hz timestep with a frame accumulator, so physics
 stays identical on a 144 Hz monitor. Rendering happens once per animation
