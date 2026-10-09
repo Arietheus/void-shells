@@ -173,9 +173,18 @@ it keeps** instead, one at a time:
 
 | Beast | Moves | `D` | `shift` |
 | --- | --- | --- | --- |
-| **Hound** | Fast, with a double jump | **Bite** — close and quick, with a little lunge into it | **Pounce**, biting what it goes through |
+| **Hound** | The fastest thing in the game, faster even than the Warp Shell, with a double jump | **Bite** — close and quick, with a little lunge into it | **Pounce**, biting what it goes through |
 | **Swift** | Flies: every jump is a wingbeat (four before it has to land), and it glides down slowly rather than falling | **Darts**, two at a time, from range | **Dive** |
-| **Boar** | Slow, earthbound, and **can't be knocked back** | **Gore** — heavy, and it throws what it hits | **Charge**, long, goring everything in its way |
+| **Boar** | Slow, earthbound, and **can't be knocked back** | **Ram**: it charges along the ground, gores the first thing it meets and rebounds back off it (see below) | **Charge**, long, goring everything in its way |
+
+**The boar's ram.** It is the boar's main attack, and nothing can hurt it
+from the moment it sets off until the rebound is over: not the enemy it
+hits, not shots, not anything else. The rebound carries it back about two
+body lengths the way it came, and your keys wait until it has finished, so
+holding on toward the enemy doesn't walk you straight back into it. A wall
+stops a ram too, with a softer knock and nothing gored. One comes round
+about every three quarters of a second. The armour ends with the rebound,
+so the gap between rams is when the boar can be hit.
 
 - **The beast you are in is you** for every purpose the rest of the game
   has. Enemies come for it rather than the keeper, its core is the one shots
@@ -200,7 +209,7 @@ it keeps** instead, one at a time:
 Each beast changes how you move by layering over the shell's stats when they
 are read, never by writing to them, so every upgrade you take carries into
 every beast. The Herd Shell gets its own pool: Sharper teeth (the hound bites
-and the boar gores harder), Short leash (leap sooner), Thermals (the swift
+and the boar rams harder), Short leash (leap sooner), Thermals (the swift
 beats its wings twice more and its darts fly further), Pack sense (a sleeper
 snaps at whatever comes close enough to wake it, so a beast left on a ledge
 guards that ledge), and Stampede (arriving in a beast throws back whatever is

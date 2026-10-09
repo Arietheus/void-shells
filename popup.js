@@ -172,7 +172,7 @@ const BASE = {
   /* The Herd Shell's beasts. Real values, for the same reason as the salvo's:
      restoreRun fills a parked run's missing stats from here. */
   biteDmg: 2,         // the hound's bite
-  goreDmg: 5,         // the boar's tusks
+  goreDmg: 7,         // the boar's tusks, at the end of its ram
   dartDmg: 1,         // each of the swift's two darts
   flaps: 4,           // the swift's wingbeats before it has to land
   packBite: 0,        // what a sleeping beast's snap does to whatever wakes it
@@ -2346,6 +2346,7 @@ function reset() {
     charge: 0, plantT: 0, webT: 0,
     ventT: 0, ventCd: 0, ventA: 0, ventH: 0, ventSeed: 0, ventPow: 1, ventMax: 0, ventHic: 0,
     beast: null, strikeT: 0,    // the Herd Shell: which beast you are in, and its bite or gore
+    ramT: 0, ramBack: 0, ramX: 1, ramY: 0, ramFrom: 0,   // the boar's ram, and its rebound
     shield: 0, shieldT: 0, dashHits: [],
     st: { ...BASE, ...(D().base || {}) },
     taken: {},
@@ -2971,9 +2972,11 @@ function beastStats(p) {
   if (!st || st.weapon !== "herd" || !p.beast) return st;
   const o = Object.create(st);
   if (p.beast === "hound") {
-    // quick and light: the one for crossing ground
-    o.runMax = st.runMax + 0.9;
-    o.runAccel = st.runAccel + 0.15;
+    /* Quick and light: the one for crossing ground, and the fastest thing on
+       legs in the game — it outruns even the Warp Shell, and gets up to
+       speed in a couple of strides. */
+    o.runMax = st.runMax + 1.9;
+    o.runAccel = st.runAccel + 0.4;
     o.jumps = st.jumps + 1;
     o.dashDmg = st.dashDmg + 2;          // a pounce bites what it goes through
   } else if (p.beast === "swift") {
@@ -3098,6 +3101,8 @@ function swapBeast(p, st) {
   p.vx = 0;
   p.vy = 0;
   p.dashT = 0;
+  p.ramT = 0;
+  p.ramBack = 0;
   p.coyote = 0;
   p.jumps = beastStats(p).jumps;
   p.iframes = Math.max(p.iframes, HERD_GRACE);
@@ -3152,8 +3157,86 @@ function beastStrike(p, a, reach, arc, dmg, shove) {
   return landed;
 }
 
+/* The boar's D is a ram. It charges straight along the ground, stops dead on
+   the first thing its tusks meet, gores it, and rebounds off it the way it
+   came. From the moment it sets off until the rebound has run out nothing
+   hurts it: the hit is the one moment a slow beast is ever inside an enemy,
+   so that is where it is armoured. The rebound is the ram's own, too — your
+   keys wait until it has finished, so holding on toward what you hit
+   doesn't walk you straight back into it. */
+const RAM_TIME = 16;        // frames it charges for when it meets nothing
+const RAM_SPEED = 6.4;
+const RAM_CD = 46;          // from one ram to the next
+const RAM_REACH = 5;        // how far past its box the tusks meet things
+const RAM_BOUNCE = 4.6;     // how hard it comes back off what it hits
+const RAM_HOP = 3;
+const RAM_BACK = 14;        // frames of rebound
+
+// sets off toward whichever side the aim is on, along whatever it stands on
+function startRam(p, a) {
+  const fwd = gravVec(1, 0);
+  const along = a.x * fwd.x + a.y * fwd.y;
+  const dir = along > 0.2 ? 1 : along < -0.2 ? -1 : p.face;
+  const r = gravVec(dir, 0);
+  p.face = dir;
+  p.ramX = r.x;
+  p.ramY = r.y;
+  p.ramT = RAM_TIME;
+  p.ramBack = 0;
+  p.fireCd = RAM_CD;
+  const c = centerOf(p);
+  burst(c.x - r.x * 9, c.y - r.y * 9, 6, C.bone, 2, 14);
+  sfx("dash");
+}
+
+// the charge and the rebound move the boar by themselves (in place of your keys)
+function stepRam(p, rV) {
+  if (p.ramT > 0) {
+    p.ramFrom = p.x * p.ramX + p.y * p.ramY;
+    p[rV] = (rV === "vx" ? p.ramX : p.ramY) * RAM_SPEED;
+    wakePuff(p.x + p.w / 2, p.y + p.h / 2);
+  } else {
+    p.ramBack--;
+    p[rV] *= p.onGround ? 0.82 : 0.95;
+  }
+}
+
+/* Once the charge has moved: whatever the tusks have met takes the gore, and
+   the boar comes back off it. A wall stops it as well, with a softer knock
+   and nothing gored. */
+function ramImpact(p, st) {
+  p.ramT--;
+  const box = {
+    x: p.x + Math.min(0, p.ramX) * RAM_REACH, y: p.y + Math.min(0, p.ramY) * RAM_REACH,
+    w: p.w + Math.abs(p.ramX) * RAM_REACH, h: p.h + Math.abs(p.ramY) * RAM_REACH,
+  };
+  const struck = foes.filter((f) => !f.ghost && overlaps(box, f));
+  const blocked = p.x * p.ramX + p.y * p.ramY - p.ramFrom < 1;
+  if (!struck.length && !blocked) return;
+  const c = centerOf(p);
+  for (const f of struck) {
+    if (!foes.includes(f)) continue;
+    meleeHit(f, st.goreDmg, c);
+    if (foes.includes(f) && f.kind !== "boss") {
+      f.vx += p.ramX * 7;
+      f.vy += p.ramY * 7 - 2;
+    }
+  }
+  const k = struck.length ? 1 : 0.55;
+  const up = gravVec(0, -1);
+  p.vx = (-p.ramX * RAM_BOUNCE + up.x * RAM_HOP) * k;
+  p.vy = (-p.ramY * RAM_BOUNCE + up.y * RAM_HOP) * k;
+  p.ramT = 0;
+  p.ramBack = RAM_BACK;
+  p.strikeT = 9;                           // the head comes up off the hit
+  shake(struck.length ? 4 : 2);
+  burst(c.x + p.ramX * 10, c.y + p.ramY * 10, struck.length ? 12 : 6, C.bone, 3, 18);
+  sfx(struck.length ? "shootHeavy" : "land");
+}
+
 // D, as whichever beast you are in
 function herdAttack(p, st) {
+  if (p.ramT > 0) ramImpact(p, st);
   if (!firing() || p.fireCd > 0) return;
   const a = aimVector();
   const c = centerOf(p);
@@ -3173,10 +3256,8 @@ function herdAttack(p, st) {
     p.flash = 4;
     sfx("shoot", 0.7);
   } else if (p.beast === "boar") {
-    // the tusks: slow, heavy, and it throws what it hits
-    beastStrike(p, a, 30, 1.7, st.goreDmg, 6.5);
-    p.fireCd = 30;
-    sfx("shootHeavy");
+    startRam(p, a);
+    return;                                // its strike comes when it meets something
   } else {
     // the bite: close, quick, and a little lunge into it
     beastStrike(p, a, 26, 1.3, st.biteDmg, 1.5);
@@ -3220,7 +3301,7 @@ function stepPlayer() {
   }
 
   const ix = (right() ? 1 : 0) - (left() ? 1 : 0);
-  if (ix !== 0 && p.dashT <= 0) p.face = ix;
+  if (ix !== 0 && p.dashT <= 0 && !(p.ramT > 0) && !(p.ramBack > 0)) p.face = ix;
   if (p.webT > 0) p.webT--;
 
   /* The frame gravity is working in. Everything below moves along these two
@@ -3375,6 +3456,8 @@ function stepPlayer() {
     p.dashT = st.dashTime;
     p.dashCd = st.dashCd;
     p.dashHits = [];
+    p.ramT = 0;                // a dash takes over from the boar's ram
+    p.ramBack = 0;
     sfx("dash");
 
     // the Rig's dash doubles as a recall: drones snap in and open up
@@ -3419,6 +3502,8 @@ function stepPlayer() {
       p[rV] = 0;
     } else if (p.ventT > 0) {
       stepVent(p, st, runIn, rV);
+    } else if (p.ramT > 0 || p.ramBack > 0) {
+      stepRam(p, rV);
     } else if (runIn !== 0) {
       // silk on your legs: you still move, but you fight it
       const drag = p.webT > 0 ? 0.42 : 1;
@@ -3582,6 +3667,8 @@ function stepPlayer() {
     p.vx = 0;
     p.vy = 0;
     p.iframes = 0;
+    p.ramT = 0;                // a ram's armour doesn't cover a fall
+    p.ramBack = 0;
     hurtPlayer(p.x);
     burst(p.x + p.w / 2, p.y + p.h, 16, C.ember, 3.4, 28);
   }
@@ -4080,6 +4167,7 @@ function bulletBlast(b) {
 
 function hurtPlayer(fromX) {
   if (player.iframes > 0 || player.dashT > 0 || !state.running) return;
+  if (player.ramT > 0 || player.ramBack > 0) return;     // the boar, mid-ram
   // the stretch between a boss dying and the next door is a breather, not a
   // place to lose the run to a stray orb still crossing the arena
   if (state.doorOpen || state.choosing) return;
@@ -9346,7 +9434,7 @@ const BALLAST_UPGRADES = [
 ];
 
 const HERD_UPGRADES = [
-  { id: "teeth",    name: "Sharper teeth", desc: "The hound bites and the boar gores harder", max: 3,
+  { id: "teeth",    name: "Sharper teeth", desc: "The hound bites and the boar rams harder", max: 3,
     apply: (s) => { s.biteDmg += 1; s.goreDmg += 2; } },
   { id: "leash",    name: "Short leash", desc: "Leap between beasts sooner", max: 3,
     apply: (s) => { s.nadeCd = Math.max(14, s.nadeCd - 7); } },

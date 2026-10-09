@@ -6,9 +6,16 @@
      S leaps into the next beast wherever it is, leaves the last one asleep
        exactly where it stood, holds its cooldown, and lands you with a moment's
        grace
-     the beasts really are different: the hound outruns the boar, the swift
-       flies on wingbeats and glides down slowly, the boar can't be knocked back
-     the hound bites, the boar gores harder and throws, the swift throws darts
+     the beasts really are different: the hound outruns the boar and even
+       the Warp Shell, the swift flies on wingbeats and glides down slowly,
+       the boar can't be knocked back
+     the hound bites and the swift throws darts
+     the boar rams: D charges it along the ground, it stops on the first thing
+       it meets, gores it harder than a bite and rebounds back off it the way
+       it came, holding on toward the enemy doesn't cancel the rebound, and
+       nothing hurts it from setting off to the end of the rebound (but the
+       armour ends with it); a wall stops it too, and a ram into nothing runs
+       out by itself
      the beast is you: enemies come for it rather than the keeper, and its
        hits cost the shell's pips
      upgrades carry into every beast, and the pool is the herd's own
@@ -40,9 +47,9 @@ const x = globalThis.__g;
 const { ok, done } = makeOk();
 const problems = watchCanvas(x.ctx);
 
-function start() {
+function start(id = "herd") {
   x.free();
-  d.state.char = d.CHARACTERS.findIndex((c) => c.id === "herd");
+  d.state.char = d.CHARACTERS.findIndex((c) => c.id === id);
   d.state.event = null;
   d.state.grav = "down";
   d.begin();
@@ -136,6 +143,17 @@ function leap() {
   };
   const hound = dist("hound"), boar = dist("boar");
   ok(hound > boar * 1.5, "the hound outruns the boar (" + Math.round(hound) + "px to " + Math.round(boar) + "px)");
+  const warp = (() => {
+    const p = start("warp");
+    p.x = 120;
+    run(20);
+    const x0 = p.x;
+    x.hold("right");
+    run(50);
+    x.free();
+    return p.x - x0;
+  })();
+  ok(hound > warp * 1.1, "and even the Warp Shell, the fastest of the shells (" + Math.round(hound) + "px to " + Math.round(warp) + "px)");
 
   const p = start();
   become("swift");
@@ -176,15 +194,13 @@ function leap() {
     const f = x.makeFoe("warden", p.x + p.w + 4, p.y - 2);
     f.hp = 99;
     x.foes.push(f);
-    const vx = f.vx;
     x.hold("fire");
     run(1);
     x.free();
-    return { dmg: 99 - f.hp, thrown: Math.abs(f.vx - vx) };
+    return 99 - f.hp;
   };
-  const bite = strike("hound"), gore = strike("boar");
-  ok(bite.dmg > 0, "the hound's bite lands (" + bite.dmg + ")");
-  ok(gore.dmg > bite.dmg && gore.thrown > bite.thrown, "the boar's gore hits harder and throws further");
+  const bite = strike("hound");
+  ok(bite > 0, "the hound's bite lands (" + bite + ")");
 
   const p = start();
   become("swift");
@@ -193,6 +209,116 @@ function leap() {
   run(1);
   x.free();
   ok(x.bullets.length - before === 2, "the swift throws its darts in pairs");
+}
+
+// --- the boar's ram ---------------------------------------------------------
+{
+  // a boar facing a warden a little way off along the floor, with nothing to soften a hit
+  const facing = (gap) => {
+    const p = start();
+    become("boar");
+    p.face = 1;
+    p.x = 150;
+    run(10);
+    p.iframes = 0;
+    p.shield = 0;
+    p.hp = p.st.maxHp;
+    const f = x.makeFoe("warden", p.x + p.w + gap, p.y + p.h - 22);
+    f.hp = 99;
+    f.entered = true;
+    x.foes.push(f);
+    return { p, f };
+  };
+  // press D (with `keys` held throughout) and follow the ram to the end of its rebound
+  const ram = (p, f, keys = []) => {
+    const out = { fastest: 0, hit: null, passed: false, hurt: false };
+    const hp = p.hp;
+    for (const k of keys) x.hold(k);
+    x.hold("fire");
+    run(1);
+    x.free();
+    for (const k of keys) x.hold(k);
+    for (let i = 0; i < 60; i++) {
+      d.tick();
+      out.fastest = Math.max(out.fastest, p.vx);
+      if (f && p.x > f.x + f.w / 2) out.passed = true;
+      if (p.hp < hp || p.shield > 0) out.hurt = true;
+      if (!out.hit && p.ramBack > 0) out.hit = { x: p.x, vx: p.vx, foeHp: f ? f.hp : 99 };
+      if (out.hit ? p.ramBack === 0 : p.ramT === 0) break;
+    }
+    x.free();
+    out.end = p.x;
+    return out;
+  };
+
+  {
+    const { p, f } = facing(40);
+    const runMax = x.beastStats(p).runMax;
+    const r = ram(p, f);
+    ok(r.fastest > runMax * 1.8, "D sets the boar charging, far faster than it runs (" + r.fastest.toFixed(1) + " to " + runMax.toFixed(1) + ")");
+    ok(r.hit && !r.passed, "the charge stops on the first thing it meets rather than going through it");
+    const gored = r.hit ? 99 - r.hit.foeHp : 0;
+    ok(gored > x.beastStats(p).biteDmg, "and gores it, harder than the hound bites (" + gored + ")");
+    ok(r.hit && r.hit.vx < 0 && r.hit.x - r.end > 25,
+       "then rebounds back off it the way it came (" + (r.hit ? Math.round(r.hit.x - r.end) : 0) + "px)");
+    ok(!r.hurt, "and nothing hurt it: not the charge, the hit or the rebound");
+  }
+  {
+    const { p, f } = facing(40);
+    const r = ram(p, f, ["right"]);
+    ok(r.hit && r.hit.x - r.end > 25 && !r.hurt,
+       "holding on toward the enemy doesn't cancel the rebound or walk it back in (" + (r.hit ? Math.round(r.hit.x - r.end) : 0) + "px back)");
+  }
+  {
+    // point blank, already inside it: only the ram's armour keeps this clean
+    const { p, f } = facing(-12);
+    const r = ram(p, f);
+    ok(r.hit && !r.hurt && r.hit.foeHp < 99 && r.hit.x - r.end > 25,
+       "rammed from inside its reach, it still gores, rebounds clear and takes nothing");
+  }
+  {
+    // the control: the same warden, walked into without a ram, does hurt
+    const { p } = facing(10);
+    const hp = p.hp;
+    x.hold("right");
+    run(30);
+    x.free();
+    ok(p.hp < hp, "the same warden hurts a boar that just walks into it");
+  }
+  {
+    const { p, f } = facing(60);
+    x.hold("fire");
+    run(1);
+    x.free();
+    run(2);
+    const hp = p.hp;
+    p.iframes = 0;
+    x.hurtPlayer(cx(p));
+    ok(p.ramT > 0 && p.hp === hp, "the charge can't be shot out of either");
+    for (let i = 0; i < 40 && (p.ramT > 0 || p.ramBack > 0); i++) run(1);
+    x.foes.length = 0;
+    p.iframes = 0;
+    x.hurtPlayer(cx(p));
+    ok(p.ramT === 0 && p.ramBack === 0 && p.hp < hp, "but the armour ends with the rebound");
+  }
+  {
+    // nothing in the way: it runs out on its own and doesn't rebound off the air
+    const p = start();
+    become("boar");
+    p.face = 1;
+    p.x = 150;
+    run(10);
+    const r = ram(p, null);
+    ok(!r.hit && p.ramT === 0 && p.ramBack === 0 && r.end > 210, "a ram into nothing runs its length and ends by itself (" + Math.round(r.end - 150) + "px)");
+
+    const q = start();
+    become("boar");
+    q.face = 1;
+    q.x = d.W - q.w - 30;
+    run(10);
+    const w = ram(q, null);
+    ok(w.hit && w.hit.vx < 0 && w.end < d.W - q.w - 10, "a wall stops it too, and knocks it back");
+  }
 }
 
 // --- the beast is you --------------------------------------------------------

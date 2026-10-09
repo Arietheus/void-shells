@@ -13,12 +13,18 @@ function drawBoar(b, live) {
   const run = live && grounded ? clamp(Math.abs(b.vx || 0) / 2, 0, 1) : 0;
   const ph = tt * 0.55;
   const gore = live && b.strikeT > 0 ? b.strikeT / 9 : 0;
-  const charging = live && b.dashT > 0;
+  const charging = live && (b.dashT > 0 || b.ramT > 0);
+  const recoil = live && b.ramBack > 0 ? b.ramBack / RAM_BACK : 0;   // coming back off a ram
 
   if (!live) beastPool(b);
   ctx.save();
   ctx.translate(b.x + b.w / 2, b.y + b.h);
   ctx.scale(fx, 1);
+  if (recoil) {                                   // rocked back onto its haunches
+    ctx.translate(-8, 0);
+    ctx.rotate(-recoil * 0.2);
+    ctx.translate(8, 0);
+  }
 
   const sleep = !live;
   const lift = sleep ? 3.6 : 0;                   // lying down, it sits lower
@@ -118,10 +124,16 @@ function drawBoar(b, live) {
   }
   ctx.restore();
 
-  // a charge kicks up the ground behind it
+  // a charge kicks up the ground behind it, and the air streams off it
   if (charging) {
     ctx.fillStyle = "rgba(236,229,206,0.3)";
     for (let i = 0; i < 3; i++) fillOval(-14 - i * 6, -2 - i, 4 - i, 2 - i * 0.4);
+    ctx.strokeStyle = "rgba(236,229,206,0.35)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      const y = -15 + i * 4.5, slide = (tt * 3 + i * 5) % 8;
+      strokeLine(-12 - slide, y, -20 - slide, y);
+    }
   }
   ctx.restore();
   if (sleep) beastSleep(b, b.x + b.w / 2 + fx * 9, b.y + b.h - 13);
