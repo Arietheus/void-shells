@@ -19,7 +19,7 @@
 
 import { LIMITS, MAX_WAVE } from "./limits.js";
 
-const SHELLS = ["shell", "warp", "rig", "ballast"];
+const SHELLS = ["shell", "warp", "rig", "ballast", "herd"];
 /* Retired events stay on the list: the board still holds their scores, and a
    row the server itself wrote must never fail its own validation. */
 const EVENTS = [null, "boss", "gallery", "nightfall", "famine", "requiem", "haste"];

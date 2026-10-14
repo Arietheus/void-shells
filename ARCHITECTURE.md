@@ -25,9 +25,10 @@ Everything runs in one page:
 popup.html   the skeleton: a <canvas id="stage">, a HUD header, and the
              panels (pause, forge, settings, postmortem, auxiliary)
 popup.css    all styling for those panels. Does not touch the game itself.
-popup.js     the game: everything except how its bosses and mobs look
-art/         how its bosses and mobs look — one file each, in bosses/ and
-             mobs/, loaded ahead of popup.js (see "Art" in §8)
+popup.js     the game: everything except how its creatures look
+art/         how its creatures look — one file each, in bosses/, mobs/ and
+             beasts/ (the Herd Shell's), loaded ahead of popup.js (see "Art"
+             in §8)
 fonts/       three woff2 faces: display, data, voice
 icons/       toolbar icons
 ```
@@ -427,7 +428,8 @@ that has already missed.
 
 How every boss and mob looks lives in `art/`, one file per creature:
 `art/bosses/` holds the thirteen bosses plus `presence.js`, the shadow, aura
-and cinders every boss stands in, and `art/mobs/` holds the twelve mob kinds.
+and cinders every boss stands in, `art/mobs/` holds the twelve mob kinds, and
+`art/beasts/` holds the Herd Shell's hound, swift and boar.
 A file is nothing but drawing code — functions that take a foe and paint it
 onto `ctx` with the palette `C` and the shape helpers (`fillDisc`,
 `strokeRing`, `fillOval`, …) that `popup.js` defines.
@@ -814,6 +816,7 @@ The ones to know:
 | `wrecks.mjs` | every boss comes apart as one wreck, nothing lands while it burns, the salvage screen waits |
 | `hits.mjs` | any hit restarts the Rig's rebuild; the eclipse's sphere lands with its whole disc |
 | `vent.mjs` | the Ballast's vent: S below a full bar throws it far and badly — never the same landing twice, walls bounce it, planting stops it — and it survives a save |
+| `herd.mjs` | the Herd Shell: your keys drive the beast and never the keeper, S leaps into the next beast and leaves the last asleep where it stood, the beasts move and fight differently, enemies hunt the beast, upgrades carry into every beast, and the herd survives rooms and saves |
 | `art.mjs` | each file in `art/` loads on its own ahead of `popup.js`, no name is declared in two scripts, the page loads everything in `art/`, and every boss and mob kind is drawn by its own art |
 | `eclipse.mjs` | the sphere gathers, then speeds up to its cap without turning; every second trade is a totality neither body can be hurt through; the gaze holds still once locked and fires down that line; the survivor takes up its twin's weapon; saves mid-totality carry on |
 | `salvo.mjs` | the Ballast's missiles launch, close on the aim, seek, and survive a save |

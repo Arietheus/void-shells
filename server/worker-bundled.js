@@ -6,7 +6,7 @@
    anybody does.
 
    Paste target: Compute (Workers) -> void-shells-board -> Edit code.
-   Generated 2026-09-18. */
+   Generated 2026-10-07. */
 
 /* Void Shells leaderboard.
    One Cloudflare Worker, one D1 database, two routes.
@@ -60,7 +60,7 @@ const LIMITS = {
   },
 };
 
-const SHELLS = ["shell", "warp", "rig", "ballast"];
+const SHELLS = ["shell", "warp", "rig", "ballast", "herd"];
 /* Retired events stay on the list: the board still holds their scores, and a
    row the server itself wrote must never fail its own validation. */
 const EVENTS = [null, "boss", "gallery", "nightfall", "famine", "requiem", "haste"];
