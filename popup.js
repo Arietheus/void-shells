@@ -172,6 +172,7 @@ const BASE = {
   /* The Herd Shell's beasts. Real values, for the same reason as the salvo's:
      restoreRun fills a parked run's missing stats from here. */
   biteDmg: 2,         // the hound's bite
+  bloodPip: 18,       // what the hound's teeth have to take out of things to mend a pip
   goreDmg: 7,         // the boar's tusks, at the end of its ram
   dartDmg: 1,         // each of the swift's two darts
   flaps: 4,           // the swift's wingbeats before it has to land
@@ -2347,6 +2348,7 @@ function reset() {
     ventT: 0, ventCd: 0, ventA: 0, ventH: 0, ventSeed: 0, ventPow: 1, ventMax: 0, ventHic: 0,
     beast: null, strikeT: 0,    // the Herd Shell: which beast you are in, and its bite or gore
     ramT: 0, ramBack: 0, ramX: 1, ramY: 0, ramFrom: 0,   // the boar's ram, and its rebound
+    blood: 0,                   // the hound's lifesteal, gathering toward the next pip
     shield: 0, shieldT: 0, dashHits: [],
     st: { ...BASE, ...(D().base || {}) },
     taken: {},
@@ -3026,6 +3028,7 @@ function setupHerd(fresh) {
   const p = player;
   if (fresh || !herd) {
     p.beast = "hound";
+    houndMotes.length = 0;
     herd = { post: null, beasts: [], leap: null };
     for (const kind of BEAST_ORDER) {
       if (kind !== p.beast) herd.beasts.push({ kind, x: 0, y: 0, w: 15, h: 21, vy: 0, face: 1, t: 0, snap: 0, cd: 0 });
@@ -3078,6 +3081,7 @@ function stepHerd() {
     }
   }
   if (herd.leap && ++herd.leap.t > 18) herd.leap = null;
+  stepHoundMotes();
 }
 
 /* The leap: your will goes into the next beast round, wherever it stands,
@@ -3126,6 +3130,49 @@ function swapBeast(p, st) {
   }
 }
 
+/* The hound's lifesteal. What its teeth take out of an enemy — the bite and
+   the pounce, counted as the health the enemy actually lost, so overkill and
+   an armoured plate give nothing — runs back into the shell as blood, and
+   every `bloodPip` of it mends a pip. It only gathers while there is a pip
+   to mend, and it belongs to the shell rather than the hound: a leap into
+   the swift or the boar keeps what has gathered for when you come back. The
+   next empty pip in the HUD fills as it gathers, and the blood itself is
+   drawn running from the bite back into the hound. */
+const houndMotes = [];
+
+function houndFeed(p, f, dealt) {
+  if (!(dealt > 0) || p.hp >= p.st.maxHp) return;
+  p.blood = (p.blood || 0) + dealt;
+  const t = centerOf(f);
+  for (let i = 0; i < Math.min(6, dealt * 2); i++) {
+    houndMotes.push({ x: t.x + rand(-4, 4), y: t.y + rand(-4, 4), vx: rand(-1.6, 1.6), vy: rand(-2.2, 0.4), t: 0 });
+  }
+  while (p.blood >= p.st.bloodPip && p.hp < p.st.maxHp) {
+    p.blood -= p.st.bloodPip;
+    p.hp++;
+    const c = centerOf(p);
+    burst(c.x, c.y, 14, C.mint, 2.8, 26);
+    sfx("heart");
+  }
+  if (p.hp >= p.st.maxHp) p.blood = 0;
+}
+
+// the blood runs back into whatever beast you are in now
+function stepHoundMotes() {
+  const pc = centerOf(player);
+  for (let i = houndMotes.length - 1; i >= 0; i--) {
+    const m = houndMotes[i];
+    m.t++;
+    const dx = pc.x - m.x, dy = pc.y - m.y, d = Math.hypot(dx, dy) || 1;
+    const pull = Math.min(1.4, 0.12 + m.t * 0.05);
+    m.vx = m.vx * 0.86 + (dx / d) * pull;
+    m.vy = m.vy * 0.86 + (dy / d) * pull;
+    m.x += m.vx;
+    m.y += m.vy;
+    if (d < 6 || m.t > 60) houndMotes.splice(i, 1);
+  }
+}
+
 /* A bite or a gore: everything whose box comes within `reach` of the beast,
    inside `arc` of where it is facing — anything it is already standing in
    counts whichever way it faces. */
@@ -3145,7 +3192,9 @@ function beastStrike(p, a, reach, arc, dmg, shove) {
       while (off < -Math.PI) off += TAU;
       if (Math.abs(off) > arc / 2) continue;
     }
+    const before = f.hp;
     meleeHit(f, dmg, c);
+    if (p.beast === "hound") houndFeed(p, f, before - Math.max(0, f.hp));
     landed++;
     if (shove && foes.includes(f) && f.kind !== "boss") {
       f.vx += a.x * shove;
@@ -3489,7 +3538,9 @@ function stepPlayer() {
       for (const f of [...foes]) {
         if (f.ghost || p.dashHits.includes(f.id) || !overlaps(p, f)) continue;
         p.dashHits.push(f.id);
+        const before = f.hp;
         damageFoe(f, st.dashDmg, p.dashX * 2.5, p.dashY * 2.5);
+        if (p.beast === "hound") houndFeed(p, f, before - Math.max(0, f.hp));   // the hound's pounce
         burst(f.x + f.w / 2, f.y + f.h / 2, 8, C.bone, 3, 20);
         shake(2);
       }
@@ -12336,6 +12387,7 @@ function draw() {
   drawSeekerLocks();
   drawHerd();
   if (state.running || player.hp > 0) drawPlayer();
+  drawHoundMotes();
   drawQuakes();
   drawSpikes();
   drawShards();
@@ -16210,6 +16262,28 @@ function drawHerd() {
   drawKeeper(k, fk, lantern, leap);
 }
 
+/* The hound's lifesteal running home. Drawn over the player rather than with
+   the rest of the herd, because it runs into the beast you are in and would
+   vanish under it. */
+function drawHoundMotes() {
+  if (!houndMotes.length) return;
+  ctx.save();
+  ctx.strokeStyle = C.ember;
+  ctx.fillStyle = C.ember;
+  ctx.lineCap = "round";
+  ctx.lineWidth = 2;
+  for (const m of houndMotes) {
+    const fade = Math.min(1, m.t / 3);
+    ctx.globalAlpha = 0.55 * fade;
+    strokeLine(m.x - m.vx * 2.2, m.y - m.vy * 2.2, m.x, m.y);
+    ctx.globalAlpha = 0.35 * fade;
+    fillDisc(m.x, m.y, 4);
+    ctx.globalAlpha = fade;
+    fillDisc(m.x, m.y, 2.1);
+  }
+  ctx.restore();
+}
+
 /* The shell itself: kneeling at its cairn with a crook, a lantern hung from
    the crook, and its face turned toward whichever beast it is in. It is
    built from the same suit as the other shells — helm, visor, cape — so it
@@ -18275,10 +18349,24 @@ function paintHud() {
       ui.pips.appendChild(d);
     }
     hudLast.pips = null;
+    hudLast.blood = null;
   }
   hudSet("pips", maxHp + ":" + player.hp, () => {
     const kids = ui.pips.children;
     for (let i = 0; i < kids.length; i++) kids[i].classList.toggle("spent", i >= player.hp);
+  });
+  /* The Herd Shell's hound mends pips by biting, and the next empty pip
+     fills from the bottom as its blood gathers, in twentieths so this is
+     written a handful of times a pip rather than every frame. */
+  const blood = player.hp < maxHp && player.st.bloodPip > 0
+    ? Math.round(clamp((player.blood || 0) / player.st.bloodPip, 0, 1) * 20) : 0;
+  hudSet("blood", maxHp + ":" + player.hp + ":" + blood, () => {
+    const kids = ui.pips.children;
+    for (let i = 0; i < kids.length; i++) {
+      const filling = blood > 0 && i === player.hp;
+      kids[i].classList.toggle("filling", filling);
+      if (filling) kids[i].style.setProperty("--fill", (blood / 20).toFixed(2));
+    }
   });
   /* On your last pip the whole row goes hot and beats. Losing a run because
      you didn't notice how thin you were is a bad way to lose one, and the

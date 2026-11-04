@@ -173,9 +173,18 @@ it keeps** instead, one at a time:
 
 | Beast | Moves | `D` | `shift` |
 | --- | --- | --- | --- |
-| **Hound** | The fastest thing in the game, faster even than the Warp Shell, with a double jump | **Bite** — close and quick, with a little lunge into it | **Pounce**, biting what it goes through |
+| **Hound** | The fastest thing in the game, faster even than the Warp Shell, with a double jump | **Bite** — close and quick, with a little lunge into it, and it **heals you** (see below) | **Pounce**, biting what it goes through, and healing you the same way |
 | **Swift** | Flies: every jump is a wingbeat (four before it has to land), and it glides down slowly rather than falling | **Darts**, two at a time, from range | **Dive** |
 | **Boar** | Slow, earthbound, and **can't be knocked back** | **Ram**: it charges along the ground, gores the first thing it meets and rebounds back off it (see below) | **Charge**, long, goring everything in its way |
+
+**The hound's lifesteal.** Whatever the hound's bite and pounce take out of
+an enemy comes back as blood, and every 18 points of it mends a pip. Only
+the health the enemy actually loses counts, so overkill and an armoured
+plate give nothing. Blood only gathers while you have a pip to mend, and it
+belongs to the shell rather than the hound, so leaping into the swift or the
+boar keeps what has gathered. You can watch it in two places: the blood is
+drawn running from the bite back into the hound, and the next empty pip in
+the HUD fills up from the bottom.
 
 **The boar's ram.** It is the boar's main attack, and nothing can hurt it
 from the moment it sets off until the rebound is over: not the enemy it
