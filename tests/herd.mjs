@@ -10,6 +10,12 @@
        the Warp Shell, the swift flies on wingbeats and glides down slowly,
        the boar can't be knocked back
      the hound bites and the swift throws darts
+     the hound's lifesteal: what its bite and pounce actually take out of an
+       enemy gathers as blood, and every bloodPip of it mends a pip; overkill
+       and an armoured plate give nothing, nothing gathers at full health, the
+       boar's ram and the swift's darts don't feed it, a leap keeps what has
+       gathered, the blood is drawn running home, and the next empty pip in
+       the HUD fills with it
      the boar rams: D charges it along the ground, it stops on the first thing
        it meets, gores it harder than a bite and rebounds back off it the way
        it came, holding on toward the enemy doesn't cancel the rebound, and
@@ -41,6 +47,7 @@ const { d } = load({
       hold(a) { for (const c of binds[a]) held.add(c); }, free() { held.clear(); },
       jump() { jumpBuffer = 6; },
       pressDash() { dashRequest = true; },
+      houndMotes, paintHud, hudLast, ui,
     };`,
 });
 const x = globalThis.__g;
@@ -209,6 +216,135 @@ function leap() {
   run(1);
   x.free();
   ok(x.bullets.length - before === 2, "the swift throws its darts in pairs");
+}
+
+// --- the hound's lifesteal -------------------------------------------------------
+{
+  // a hurt hound with a warden at its teeth; nothing gets through to it meanwhile
+  const hurt = (foeHp = 99) => {
+    const p = start();
+    p.face = 1;
+    run(4);
+    p.hp = p.st.maxHp - 2;
+    p.blood = 0;
+    p.iframes = 1e6;
+    const f = x.makeFoe("warden", p.x + p.w + 4, p.y - 2);
+    f.hp = foeHp;
+    f.entered = true;
+    x.foes.push(f);
+    return { p, f };
+  };
+  const bite = () => {
+    x.player.fireCd = 0;
+    x.hold("fire");
+    run(1);
+    x.free();
+  };
+
+  {
+    const { p, f } = hurt();
+    bite();
+    ok(99 - f.hp > 0 && p.blood === 99 - f.hp, "a hurt hound's bite gathers what it took as blood (" + p.blood + ")");
+    ok(x.houndMotes.length > 0, "and the blood is drawn running back into it");
+    run(70);
+    ok(x.houndMotes.length === 0, "where it arrives, rather than hanging in the room");
+  }
+  {
+    const { p, f } = hurt();
+    const hp = p.hp;
+    let taken = 0;
+    for (let i = 0; i < 30 && p.hp === hp; i++) {
+      const before = f.hp;
+      bite();
+      taken += before - f.hp;
+    }
+    ok(p.hp === hp + 1 && taken >= p.st.bloodPip && taken < p.st.bloodPip + p.st.biteDmg,
+       "biting mends a pip once its teeth have taken " + p.st.bloodPip + " (" + taken + ")");
+    ok(p.blood === taken - p.st.bloodPip, "and what was over carries on toward the next");
+  }
+  {
+    const { p, f } = hurt();
+    p.hp = p.st.maxHp - 1;
+    p.blood = p.st.bloodPip - 1;
+    bite();
+    ok(p.hp === p.st.maxHp && p.blood === 0, "mending the last pip leaves nothing banked");
+    bite();
+    ok(p.blood === 0 && f.hp < 99 - p.st.biteDmg, "and at full health a bite gathers nothing");
+  }
+  {
+    const { p } = hurt(1);
+    bite();
+    ok(p.blood === 1, "overkill doesn't count: a bite that finishes a 1-health enemy gathers 1 (" + p.blood + ")");
+  }
+  {
+    const { p, f } = hurt();
+    f.armored = true;
+    bite();
+    ok(f.hp === 99 && p.blood === 0, "an armoured plate gives nothing");
+  }
+  {
+    const { p, f } = hurt();
+    f.x = p.x + p.w + 20;
+    x.pressDash();
+    run(14);
+    ok(f.hp < 99 && p.blood === 99 - f.hp, "the pounce feeds it too (" + p.blood + ")");
+  }
+  {
+    const { p, f } = hurt();
+    become("boar");
+    p.blood = 0;
+    f.x = p.x + p.w + 30;
+    x.hold("fire");
+    run(1);
+    x.free();
+    run(30);
+    const rammed = f.hp < 99;
+    become("swift");
+    p.fireCd = 0;
+    const hp = f.hp;
+    x.hold("fire");
+    run(1);
+    x.free();
+    run(25);
+    ok(rammed && f.hp < hp && p.blood === 0, "the boar's ram and the swift's darts don't feed it");
+  }
+  {
+    const { p } = hurt();
+    p.blood = 7;
+    leap();
+    const away = p.blood;
+    run(p.st.nadeCd);
+    leap();
+    run(p.st.nadeCd);
+    leap();
+    ok(p.beast === "hound" && away === 7 && p.blood === 7, "a leap away and back keeps what has gathered");
+  }
+  {
+    // the HUD: the next empty pip fills from the bottom with what has gathered
+    const p = start();
+    const pips = [];
+    for (let i = 0; i < p.st.maxHp; i++) {
+      const cls = new Set(), props = {};
+      pips.push({
+        cls, props, className: "pip",
+        classList: { toggle(c, on) { if (on) cls.add(c); else cls.delete(c); }, add(c) { cls.add(c); },
+                     remove(c) { cls.delete(c); }, contains: (c) => cls.has(c) },
+        style: { setProperty(k, v) { props[k] = v; } },
+      });
+    }
+    x.ui.pips = { childElementCount: pips.length, children: pips, dataset: {} };
+    x.hudLast.pips = null;
+    x.hudLast.blood = null;
+    p.hp = p.st.maxHp - 2;
+    p.blood = p.st.bloodPip / 2;
+    x.paintHud();
+    const filling = pips.map((q, i) => (q.cls.has("filling") ? i : -1)).filter((i) => i >= 0);
+    ok(filling.length === 1 && filling[0] === p.hp && pips[p.hp].props["--fill"] === "0.50",
+       "the next empty pip in the HUD fills with what has gathered (" + JSON.stringify(pips[p.hp].props) + ")");
+    p.blood = 0;
+    x.paintHud();
+    ok(pips.every((q) => !q.cls.has("filling")), "and shows nothing when nothing has");
+  }
 }
 
 // --- the boar's ram ---------------------------------------------------------
@@ -398,6 +534,11 @@ function leap() {
   ok(x.restoreRun(saved), "a herd run saved mid-room restores");
   d.state.paused = false;
   ok(x.player.beast === "swift" && x.herd && x.herd.beasts.length === 2, "in the same beast, with its herd");
+  x.player.blood = 5;
+  const banked = JSON.parse(JSON.stringify(x.serialize()));
+  x.restoreRun(banked);
+  d.state.paused = false;
+  ok(x.player.blood === 5, "and with the hound's blood still gathered");
 
   start();
   const old = JSON.parse(JSON.stringify(x.serialize()));

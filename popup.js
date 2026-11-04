@@ -172,6 +172,7 @@ const BASE = {
   /* The Herd Shell's beasts. Real values, for the same reason as the salvo's:
      restoreRun fills a parked run's missing stats from here. */
   biteDmg: 2,         // the hound's bite
+  bloodPip: 18,       // what the hound's teeth have to take out of things to mend a pip
   goreDmg: 7,         // the boar's tusks, at the end of its ram
   dartDmg: 1,         // each of the swift's two darts
   flaps: 4,           // the swift's wingbeats before it has to land
@@ -1155,7 +1156,50 @@ const LAYOUTS = [
    { x: 290, y: 348, w: 180, h: 13 },
    { x: 40, y: 292, w: 140, h: 13 },  { x: 580, y: 292, w: 140, h: 13 },
    { x: 160, y: 226, w: 120, h: 13 }, { x: 480, y: 226, w: 120, h: 13 },
-   { x: 320, y: 168, w: 120, h: 13 }]
+   { x: 320, y: 168, w: 120, h: 13 }],
+
+  /* crevasse — the rime. Ice floes stepping up both walls of a crack in a
+     glacier, and over the middle a bridge of ice that has broken in two: a
+     60px gap at the centre of the room, straight under the aurora, that the
+     light comes down through. Every rise is 64px. */
+  [FLOOR,
+   { x: 40, y: 352, w: 120, h: 13 },  { x: 318, y: 352, w: 124, h: 13 },
+   { x: 600, y: 352, w: 120, h: 13 },
+   { x: 160, y: 288, w: 110, h: 13 }, { x: 490, y: 288, w: 110, h: 13 },
+   { x: 20, y: 224, w: 130, h: 13 },  { x: 330, y: 224, w: 100, h: 13 },
+   { x: 610, y: 224, w: 130, h: 13 },
+   { x: 180, y: 160, w: 170, h: 13 }, { x: 410, y: 160, w: 170, h: 13 }],
+
+  /* atoll — the drowned reef. A coral mound in the middle of the floor, wide
+     and low, with heads standing either side of it and the reef climbing
+     from them in two arcs to a crown over the centre. The flanking heads are
+     too high to jump to from the sand: the way up starts on the mound. */
+  [FLOOR,
+   { x: 250, y: 356, w: 260, h: 13 },
+   { x: 90, y: 296, w: 110, h: 13 },  { x: 330, y: 296, w: 100, h: 13 },
+   { x: 560, y: 296, w: 110, h: 13 },
+   { x: 180, y: 232, w: 110, h: 13 }, { x: 470, y: 232, w: 110, h: 13 },
+   { x: 20, y: 172, w: 110, h: 13 },  { x: 325, y: 172, w: 110, h: 13 },
+   { x: 630, y: 172, w: 110, h: 13 }],
+
+  /* isles — the rift. Nothing in the room is fixed to anything: every ledge
+     is a shelf of rock hanging in the air, bobbing on its own slow breath,
+     out of step with its neighbours. The swing is small (6px either way) and
+     the tiers are 62px apart, so even two neighbours caught at opposite ends
+     of their swing are a 74px climb — inside a stock jump. The keystone at
+     the top is the one thing that holds still. */
+  [FLOOR,
+   moving({ x: 60, y: 354, w: 110, h: 13 }, "y", 6, 0.019, 0),
+   moving({ x: 325, y: 354, w: 110, h: 13 }, "y", 6, 0.017, 2.1),
+   moving({ x: 590, y: 354, w: 110, h: 13 }, "y", 6, 0.021, 4.2),
+   moving({ x: 190, y: 292, w: 100, h: 13 }, "y", 6, 0.016, 1.2),
+   moving({ x: 470, y: 292, w: 100, h: 13 }, "y", 6, 0.018, 3.3),
+   moving({ x: 40, y: 230, w: 110, h: 13 }, "y", 6, 0.02, 5.1),
+   moving({ x: 325, y: 230, w: 110, h: 13 }, "y", 6, 0.015, 0.6),
+   moving({ x: 610, y: 230, w: 110, h: 13 }, "y", 6, 0.019, 2.7),
+   moving({ x: 180, y: 168, w: 110, h: 13 }, "y", 6, 0.017, 3.9),
+   moving({ x: 470, y: 168, w: 110, h: 13 }, "y", 6, 0.02, 1.8),
+   { x: 330, y: 110, w: 100, h: 13 }]
 ];
 
 let platforms = LAYOUTS[0];
@@ -1296,15 +1340,87 @@ const BIOMES = [
     seam: "214,176,104",
     driftA: 0.45,          // incense dust, catching the light
   },
+  /* --- the newer caverns ------------------------------------------------
+     These three keep their art in art/caverns/, one file each, and reach it
+     through CAVERN_ART below: what to build for the room, what to draw in its
+     sky, behind the fight and in front of it, and what grows on its ledges. */
+  {
+    id: "rime", name: "the rime",
+    /* A crevasse in a glacier, open to a polar night. The aurora is the
+       light: no shafts, and everything that catches light here catches it in
+       the aurora's green — the ice, the snow, the rims of the ridges. */
+    sky: ["#03060e", "#081325", "#10233a"],
+    lightC: "176,232,236", shafts: 0, shaftA: 0, shaftW: [0, 0],
+    fog: "150,205,235", fogA: 0.09,
+    props: {},
+    ridge: "#0e1c2b", ridge2: "#09131f", fore: "#02060b",
+    seam: "196,240,255",
+    driftA: 0.62,           // snow, catching the light
+    columns: false,         // the crack is open: nothing stands floor to roof across the sky
+  },
+  {
+    id: "reef", name: "the drowned reef",
+    /* A sunken grotto, lit from the surface a long way overhead: the air is
+       brightest at the top and goes to ink at the bottom, the reverse of
+       every dry cavern. Bioluminescence is the warm accent, used sparingly. */
+    sky: ["#0d5a69", "#06374a", "#021926"],
+    lightC: "140,228,232", shafts: 0, shaftA: 0, shaftW: [0, 0],
+    fog: "34,128,152", fogA: 0.1,
+    props: {},
+    ridge: "#07313f", ridge2: "#05242f", fore: "#010a0e",
+    seam: "150,240,222",
+    driftA: 0.5,            // marine snow
+    columns: false,         // open water: nothing stands floor to roof in front of the blue
+  },
+  {
+    id: "rift", name: "the rift",
+    /* The cavern wall is torn open, and through it there is no more rock:
+       a nebula, a galaxy, a ringed world, and islands of the cave adrift in
+       the light of them. Violet is the light; cyan is the colour of the tear
+       itself, where it burns. */
+    sky: ["#04020b", "#0d071d", "#170c2c"],
+    lightC: "198,164,255", shafts: 0, shaftA: 0, shaftW: [0, 0],
+    fog: "136,98,214", fogA: 0.06,
+    props: {},
+    ridge: "#150d24", ridge2: "#0e0819", fore: "#05030a",
+    seam: "206,178,255",
+    driftA: 0.5,
+    columns: false,         // nothing stands floor to roof in front of the sky
+    roofTeeth: false,       // the wall around the tear is the frame; teeth would cut into the sky
+    ridges: false,          // and no far hills: past the tear there is no more ground
+  },
 ];
+
+/* The newer caverns' art, by biome id. Each is a file in art/caverns/ that
+   popup.html loads ahead of this one:
+
+     build(rnd, slabs)                  once per arena, on its own seeded stream
+     sky(scene, bio, shift, t)          between the air and the far ridges
+     structure(scene, bio, shift, t)    the bones of the room, behind the fight
+     near(scene, bio, shift, t)         after the props, still behind the fight
+     front(scene, bio, t)               in front of the fight, kept sparse
+     dress(s, d, ledge, pick, rnd)      what grows on one slab, into its dressing
+     face(s, d, bio, t)                 on the stone, under the lip
+     ledge(s, d, bio, t)                on and under the slab, after the lip
+
+   Any of the draws may be missing. */
+const CAVERN_ART = {
+  rime: { build: buildRime, sky: drawRimeSky, structure: drawRime, front: drawRimeFront,
+          dress: dressRimeLedge, face: drawRimeFace, ledge: drawRimeLedge },
+  reef: { build: buildReef, sky: drawReefSky, structure: drawReef, near: drawReefNear, front: drawReefFront,
+          dress: dressReefLedge, face: drawReefFace, ledge: drawReefLedge },
+  rift: { build: buildRift, sky: drawRiftSky, structure: drawRift, near: drawRiftNear,
+          dress: dressRiftLedge, face: drawRiftFace, ledge: drawRiftLedge },
+};
 /* Which cavern each arena is dressed as. Layouts and biomes are different
    lengths, so a plain modulo drifted them apart and put the orrery's turning
    ring in a mushroom cave. This pins each layout to the place it belongs:
-   ledges, spine, terraces, chasm, lifts, orrery, pillars, forge. */
+   ledges, spine, terraces, chasm, lifts, orrery, pillars, cascade, forge,
+   crevasse, atoll, isles. */
 /* Arena 3 was the cisterns' second room; its symmetry — mirrored galleries,
    a stack of ledges down the middle, the floor broken open under them — is a
    nave, so it went to the pantheon. */
-const LAYOUT_BIOME = [0, 1, 2, 7, 4, 4, 3, 5, 6];
+const LAYOUT_BIOME = [0, 1, 2, 7, 4, 4, 3, 5, 6, 8, 9, 10];
 const bioIndex = (m) => LAYOUT_BIOME[m % LAYOUT_BIOME.length] ?? 0;
 
 /* Which arenas run a hazard of their own, and how many frames between its
@@ -1317,7 +1433,7 @@ const bioIndex = (m) => LAYOUT_BIOME[m % LAYOUT_BIOME.length] ?? 0;
    difficulty's. Abyssal's floor spikes (`D().spikeEvery`) are a tax the
    depth charges you wherever you are; this is a thing about one room, and
    the room is built around it. The two can and do run at once. */
-const LAYOUT_SHARDS = [0, 0, 0, 0, 0, 0, 0, 88, 0];
+const LAYOUT_SHARDS = [0, 0, 0, 0, 0, 0, 0, 88, 0, 0, 0, 0];
 const shardEvery = () => LAYOUT_SHARDS[state.map % LAYOUT_SHARDS.length] || 0;
 
 /* The order the doors walk the arenas in. It used to be the order of LAYOUTS
@@ -1730,8 +1846,14 @@ function buildBackdrop(mapIndex) {
   // a vault has no teeth: the pantheon keeps the crust along the floor but not the roof
   if (bio.id === "pantheon") fore.roof.length = 0;
 
+  /* A newer cavern builds the rest of its room in its own art file, from a
+     stream of its own: drawn from the backdrop's, it would have shifted
+     everything generated after it. */
+  const art = CAVERN_ART[bio.id];
+  const scene = art ? art.build(seeded(mapIndex * 6131 + 71), LAYOUTS[mapIndex % LAYOUTS.length] || []) : null;
+
   backdrop = { bio, ridges, masses: [], columns, veins, teeth, shafts, props, fore,
-               drift, city, cathedral, rain, forge, pantheon,
+               drift, city, cathedral, rain, forge, pantheon, scene,
                ledges: dressLedges(mapIndex, bio) };
 }
 
@@ -2047,6 +2169,10 @@ function dressLedges(mapIndex, bio) {
       }
       if (d.moves) d.fieldPh = rnd();
     }
+
+    // the newer caverns dress their own
+    const art = CAVERN_ART[id];
+    if (art && art.dress) art.dress(s, d, ledge, pick, rnd);
     return d;
   });
 
@@ -2150,6 +2276,37 @@ function footfall(s, x, k) {
     for (let i = count(2, 4); i > 0; i--) {
       bit({ x: x + r(-5, 5), vx: r(-1.2, 1.2), vy: r(-0.6, -0.1), life: r(24, 38), grav: -0.004,
             color: "rgba(40,30,26,0.6)", size: r(2, 3.4), shape: "round", grow: 1.7 });
+    }
+  } else if (id === "rime") {
+    // powder off the snow cap, and a glint or two of it in the aurora
+    for (let i = count(3, 7); i > 0; i--) {
+      bit({ x: x + r(-5, 5), vx: r(-1.4, 1.4), vy: r(-1.1, -0.2), life: r(26, 44), grav: 0.01,
+            color: "rgba(226,242,255,0.7)", size: r(1.6, 2.8), shape: "round", grow: 1.5 });
+    }
+    for (let i = count(1, 3); i > 0; i--) {
+      bit({ vx: r(-0.9, 0.9), vy: r(-1.4, -0.5), life: r(30, 50), grav: 0.02,
+            color: "rgb(196,255,230)", size: r(0.9, 1.3), shape: "round", glow: 2.6, twinkle: 0.6 });
+    }
+  } else if (id === "reef") {
+    // sand kicked up off the shelf, and the bubbles that were sitting in it
+    for (let i = count(2, 5); i > 0; i--) {
+      bit({ x: x + r(-5, 5), vx: r(-1, 1), vy: r(-0.6, -0.1), life: r(34, 54), grav: -0.002,
+            color: "rgba(176,196,170,0.45)", size: r(2, 3.4), shape: "round", grow: 1.8 });
+    }
+    for (let i = count(2, 4); i > 0; i--) {
+      bit({ x: x + r(-4, 4), vx: r(-0.3, 0.3), vy: r(-1.2, -0.5), life: r(40, 70), grav: -0.02,
+            color: "rgba(206,246,250,0.75)", size: r(1, 1.9), shape: "round" });
+    }
+  } else if (id === "rift") {
+    // the rock here weighs nothing: what comes off it rises
+    for (let i = count(2, 5); i > 0; i--) {
+      bit({ x: x + r(-5, 5), vx: r(-1.1, 1.1), vy: r(-1.3, -0.4), life: r(40, 64), grav: -0.012,
+            color: footRnd() < 0.5 ? "rgb(206,178,255)" : "rgb(112,236,255)",
+            size: r(0.9, 1.5), shape: "round", glow: 3, twinkle: 0.5 });
+    }
+    for (let i = count(1, 3); i > 0; i--) {
+      bit({ x: x + r(-6, 6), vx: r(-0.5, 0.5), vy: r(-0.6, -0.2), life: r(30, 46), grav: -0.004,
+            color: "rgb(54,42,74)", size: r(1.2, 2) });
     }
   } else if (id === "pantheon") {
     // dust off worn flagstones, and a mote or two of it catching the light
@@ -2347,6 +2504,7 @@ function reset() {
     ventT: 0, ventCd: 0, ventA: 0, ventH: 0, ventSeed: 0, ventPow: 1, ventMax: 0, ventHic: 0,
     beast: null, strikeT: 0,    // the Herd Shell: which beast you are in, and its bite or gore
     ramT: 0, ramBack: 0, ramX: 1, ramY: 0, ramFrom: 0,   // the boar's ram, and its rebound
+    blood: 0,                   // the hound's lifesteal, gathering toward the next pip
     shield: 0, shieldT: 0, dashHits: [],
     st: { ...BASE, ...(D().base || {}) },
     taken: {},
@@ -3026,6 +3184,7 @@ function setupHerd(fresh) {
   const p = player;
   if (fresh || !herd) {
     p.beast = "hound";
+    houndMotes.length = 0;
     herd = { post: null, beasts: [], leap: null };
     for (const kind of BEAST_ORDER) {
       if (kind !== p.beast) herd.beasts.push({ kind, x: 0, y: 0, w: 15, h: 21, vy: 0, face: 1, t: 0, snap: 0, cd: 0 });
@@ -3078,6 +3237,7 @@ function stepHerd() {
     }
   }
   if (herd.leap && ++herd.leap.t > 18) herd.leap = null;
+  stepHoundMotes();
 }
 
 /* The leap: your will goes into the next beast round, wherever it stands,
@@ -3126,6 +3286,49 @@ function swapBeast(p, st) {
   }
 }
 
+/* The hound's lifesteal. What its teeth take out of an enemy — the bite and
+   the pounce, counted as the health the enemy actually lost, so overkill and
+   an armoured plate give nothing — runs back into the shell as blood, and
+   every `bloodPip` of it mends a pip. It only gathers while there is a pip
+   to mend, and it belongs to the shell rather than the hound: a leap into
+   the swift or the boar keeps what has gathered for when you come back. The
+   next empty pip in the HUD fills as it gathers, and the blood itself is
+   drawn running from the bite back into the hound. */
+const houndMotes = [];
+
+function houndFeed(p, f, dealt) {
+  if (!(dealt > 0) || p.hp >= p.st.maxHp) return;
+  p.blood = (p.blood || 0) + dealt;
+  const t = centerOf(f);
+  for (let i = 0; i < Math.min(6, dealt * 2); i++) {
+    houndMotes.push({ x: t.x + rand(-4, 4), y: t.y + rand(-4, 4), vx: rand(-1.6, 1.6), vy: rand(-2.2, 0.4), t: 0 });
+  }
+  while (p.blood >= p.st.bloodPip && p.hp < p.st.maxHp) {
+    p.blood -= p.st.bloodPip;
+    p.hp++;
+    const c = centerOf(p);
+    burst(c.x, c.y, 14, C.mint, 2.8, 26);
+    sfx("heart");
+  }
+  if (p.hp >= p.st.maxHp) p.blood = 0;
+}
+
+// the blood runs back into whatever beast you are in now
+function stepHoundMotes() {
+  const pc = centerOf(player);
+  for (let i = houndMotes.length - 1; i >= 0; i--) {
+    const m = houndMotes[i];
+    m.t++;
+    const dx = pc.x - m.x, dy = pc.y - m.y, d = Math.hypot(dx, dy) || 1;
+    const pull = Math.min(1.4, 0.12 + m.t * 0.05);
+    m.vx = m.vx * 0.86 + (dx / d) * pull;
+    m.vy = m.vy * 0.86 + (dy / d) * pull;
+    m.x += m.vx;
+    m.y += m.vy;
+    if (d < 6 || m.t > 60) houndMotes.splice(i, 1);
+  }
+}
+
 /* A bite or a gore: everything whose box comes within `reach` of the beast,
    inside `arc` of where it is facing — anything it is already standing in
    counts whichever way it faces. */
@@ -3145,7 +3348,9 @@ function beastStrike(p, a, reach, arc, dmg, shove) {
       while (off < -Math.PI) off += TAU;
       if (Math.abs(off) > arc / 2) continue;
     }
+    const before = f.hp;
     meleeHit(f, dmg, c);
+    if (p.beast === "hound") houndFeed(p, f, before - Math.max(0, f.hp));
     landed++;
     if (shove && foes.includes(f) && f.kind !== "boss") {
       f.vx += a.x * shove;
@@ -3489,7 +3694,9 @@ function stepPlayer() {
       for (const f of [...foes]) {
         if (f.ghost || p.dashHits.includes(f.id) || !overlaps(p, f)) continue;
         p.dashHits.push(f.id);
+        const before = f.hp;
         damageFoe(f, st.dashDmg, p.dashX * 2.5, p.dashY * 2.5);
+        if (p.beast === "hound") houndFeed(p, f, before - Math.max(0, f.hp));   // the hound's pounce
         burst(f.x + f.w / 2, f.y + f.h / 2, 8, C.bone, 3, 20);
         shake(2);
       }
@@ -12336,6 +12543,7 @@ function draw() {
   drawSeekerLocks();
   drawHerd();
   if (state.running || player.hp > 0) drawPlayer();
+  drawHoundMotes();
   drawQuakes();
   drawSpikes();
   drawShards();
@@ -12345,6 +12553,7 @@ function draw() {
   drawBlasts();
   drawSparks();
   drawBits();
+  drawCavernFront();
   if (state.event === "nightfall" && !state.picking) drawNightfall();
   drawGravityField();
   drawChaseOverlay();
@@ -12882,6 +13091,68 @@ function blitLayer(L, dx, dy, alpha = 1) {
   }
 }
 
+/* The offset blitLayer would really lay a layer down at, for drawing the
+   same picture directly. The cache puts a layer on whole device pixels; a
+   direct draw at the raw offset lands on fractions of one, and every crisp
+   edge in it moves by up to half a pixel. Snapped, the two are the same
+   picture. */
+function snapToLayer(o) {
+  const m = ctx.getTransform();
+  return { x: (Math.round(m.a * o.x + m.e) - m.e) / m.a, y: (Math.round(m.d * o.y + m.f) - m.f) / m.d };
+}
+
+/* Soft light that moves: an aurora, a god ray, the glow of a nebula. It is
+   painted every frame — it isn't a cache — but into a small canvas at `res`
+   of the screen's resolution, and stretched back over the frame with
+   smoothing on. A ninth of the pixels to fill at a third, and the stretch is
+   the softness light like this wants anyway: hard-edged bands painted at
+   full resolution read as stripes. It draws the same picture whether the
+   layer cache is on or off. A browser that can't blit a canvas gets `paint`
+   drawn straight into the frame instead, which costs more and looks harder
+   but is the same light in the same place. */
+const softBufs = new Map();
+let softOk = true;
+
+function drawSoft(key, x0, y0, w, h, res, paint, op = "source-over") {
+  if (softOk) {
+    try {
+      const k = scale * res;
+      const bw = Math.max(1, Math.ceil(w * k)), bh = Math.max(1, Math.ceil(h * k));
+      let b = softBufs.get(key);
+      if (!b) {
+        b = document.createElement("canvas");
+        softBufs.set(key, b);
+      }
+      if (b.width !== bw || b.height !== bh) { b.width = bw; b.height = bh; }
+      const g = b.getContext("2d");
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = "source-over";
+      g.clearRect(0, 0, bw, bh);
+      g.setTransform(bw / w, 0, 0, bh / h, -x0 * (bw / w), -y0 * (bh / h));
+      const main = ctx;
+      ctx = g;
+      try {
+        paint();
+      } finally {
+        ctx = main;
+      }
+      ctx.save();
+      ctx.globalCompositeOperation = op;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(b, x0, y0, w, h);
+      ctx.restore();
+      return;
+    } catch (e) {
+      softOk = false;
+    }
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = op;
+  paint();
+  ctx.restore();
+}
+
 /* Run the cached version of something, or the direct one. A failure part way
    through a cached draw costs one frame drawn twice over, then never again. */
 function withLayers(cached, direct) {
@@ -12901,7 +13172,12 @@ function withLayers(cached, direct) {
 function drawFarLayers(bio, shift) {
   withLayers(() => {
     blitLayer(cachedLayer("sky", 0, 0, W, H, () => paintSky(bio)), 0, 0);
+    drawCavernSky(bio, shift);
     for (let r = 0; r < backdrop.ridges.length; r++) {
+      if (bio.ridges === false) {
+        if (r === 0) blitLayer(cachedLayer("haze", 0, FLOOR_TOP - 260, W, 260, () => paintHaze(bio)), 0, 0);
+        continue;
+      }
       const depth = 6 + r * 12;
       const mx = depth / 2 + 3, my = depth * 0.175 + 3;
       const top = Math.min(...backdrop.ridges[r].map((p) => p.y)) - my - 4;
@@ -12912,7 +13188,7 @@ function drawFarLayers(bio, shift) {
       if (r === 0) blitLayer(cachedLayer("haze", 0, FLOOR_TOP - 260, W, 260, () => paintHaze(bio)), 0, 0);
     }
     const oc = shift(22);
-    backdrop.columns.forEach((col, i) => {
+    if (bio.columns !== false) backdrop.columns.forEach((col, i) => {
       const reach = col.w / 2 + Math.abs(col.lean) + 14;
       blitLayer(cachedLayer("col" + i, Math.floor(col.x - reach), 0, Math.ceil(reach * 2) + 2, H,
         () => paintColumn(bio, col, 0)), oc.x, 0);
@@ -12920,21 +13196,46 @@ function drawFarLayers(bio, shift) {
     const ot = shift(30);
     const downLen = Math.max(0, ...backdrop.teeth.filter((t) => t.down).map((t) => t.len));
     const upTip = Math.min(H, ...backdrop.teeth.filter((t) => !t.down).map((t) => FLOOR_TOP - t.len));
-    blitLayer(cachedLayer("teethDown", -64, 0, W + 128, downLen + 2, () => paintTeeth(bio, 0, true)), ot.x, 0);
+    if (bio.roofTeeth !== false) {
+      blitLayer(cachedLayer("teethDown", -64, 0, W + 128, downLen + 2, () => paintTeeth(bio, 0, true)), ot.x, 0);
+    }
     blitLayer(cachedLayer("teethUp", -64, Math.floor(upTip) - 2, W + 128, H + 8 - Math.floor(upTip),
       () => paintTeeth(bio, 0, false)), ot.x, 0);
   }, () => {
     paintSky(bio);
+    drawCavernSky(bio, shift);
     for (let r = 0; r < backdrop.ridges.length; r++) {
-      paintRidge(bio, r, shift(6 + r * 12), H);
+      if (bio.ridges !== false) paintRidge(bio, r, shift(6 + r * 12), H);
       if (r === 0) paintHaze(bio);
     }
     const oc = shift(22);
-    for (const col of backdrop.columns) paintColumn(bio, col, oc.x);
+    if (bio.columns !== false) for (const col of backdrop.columns) paintColumn(bio, col, oc.x);
     const ot = shift(30);
-    paintTeeth(bio, ot.x, true);
+    if (bio.roofTeeth !== false) paintTeeth(bio, ot.x, true);
     paintTeeth(bio, ot.x, false);
   });
+}
+
+/* A newer cavern's sky: stars, aurora, nebula — whatever is out past the
+   ridges. Live, and drawn the same way in both the cached and the direct
+   pass, so the two can't disagree about it. */
+function drawCavernSky(bio, shift) {
+  const art = CAVERN_ART[bio.id];
+  if (art && art.sky && backdrop.scene) cavernArt(art.sky, backdrop.scene, bio, shift, animNow());
+}
+
+/* Every call into a cavern's art goes through here, inside a save and a
+   restore: a line cap or a join left set by one cavern's drawing would
+   otherwise ride into everything drawn after it, and into nothing painted
+   into a cached layer — which is how a cached and a direct frame stop being
+   the same picture. */
+function cavernArt(fn, ...args) {
+  ctx.save();
+  try {
+    fn(...args);
+  } finally {
+    ctx.restore();
+  }
 }
 
 /* The air of the place. Three stops rather than two so the roof can be a
@@ -13066,6 +13367,8 @@ function drawBackdrop() {
   drawShaftsBiome(shift, t);
   drawBiomeProps(shift, t, 1);
   drawRain(shift, t, true);
+  const art = CAVERN_ART[bio.id];
+  if (art && art.near && backdrop.scene) cavernArt(art.near, backdrop.scene, bio, shift, t);
 
   o = shift(30);
 
@@ -13346,6 +13649,9 @@ function drawStructure(bio, shift, t) {
 
   } else if (bio.id === "cascade") {
     drawCity(bio, shift, t);
+  } else if (CAVERN_ART[bio.id]) {
+    const art = CAVERN_ART[bio.id];
+    if (art.structure && backdrop.scene) cavernArt(art.structure, backdrop.scene, bio, shift, t);
   } else if (bio.gears) {
     // Orrery: arches receding, and the machinery turning behind them.
     for (let i = 0; i < 4; i++) {
@@ -15103,6 +15409,13 @@ function paintShaftPool(bio, sh, x, a) {
    else. Nothing about them is detailed — that's the point. They give the eye
    something unarguably close, which is what makes the rest of the room read
    as far away. */
+// a newer cavern's weather, in front of the fight
+function drawCavernFront() {
+  const bio = backdrop && backdrop.bio;
+  const art = bio && CAVERN_ART[bio.id];
+  if (art && art.front && backdrop.scene) cavernArt(art.front, backdrop.scene, bio, animNow());
+}
+
 function drawForeground() {
   if (!backdrop || !backdrop.fore) return;
   const px = (player.x + player.w / 2) / W - 0.5;
@@ -15310,6 +15623,11 @@ function ledgeBreaks(s, d) {
 /* On the face of the stone, under the lip. Drawn before the lip and seam so
    the standable edge is always the last thing painted along the top. */
 function dressFace(s, d, bio, t) {
+  const art = CAVERN_ART[bio.id];
+  if (art) {
+    if (art.face) cavernArt(art.face, s, d, bio, t);
+    return;
+  }
   if (bio.id === "ledges") {
     // moss along the lip
     ctx.fillStyle = "rgba(40,70,52,0.85)";
@@ -15545,6 +15863,11 @@ function dressFace(s, d, bio, t) {
    to the ledge, drawn once the ledge itself is finished. */
 function dressLedge(s, d, bio, t) {
   const id = bio.id;
+  const art = CAVERN_ART[id];
+  if (art) {
+    if (art.ledge) cavernArt(art.ledge, s, d, bio, t);
+    return;
+  }
   const wc = bio.water || "127,196,168";
   if (id === "ledges") {
     // a few blades of the moss hanging over the edge
@@ -16208,6 +16531,28 @@ function drawHerd() {
 
   for (const b of herd.beasts) drawBeast(b.kind, b, false);
   drawKeeper(k, fk, lantern, leap);
+}
+
+/* The hound's lifesteal running home. Drawn over the player rather than with
+   the rest of the herd, because it runs into the beast you are in and would
+   vanish under it. */
+function drawHoundMotes() {
+  if (!houndMotes.length) return;
+  ctx.save();
+  ctx.strokeStyle = C.ember;
+  ctx.fillStyle = C.ember;
+  ctx.lineCap = "round";
+  ctx.lineWidth = 2;
+  for (const m of houndMotes) {
+    const fade = Math.min(1, m.t / 3);
+    ctx.globalAlpha = 0.55 * fade;
+    strokeLine(m.x - m.vx * 2.2, m.y - m.vy * 2.2, m.x, m.y);
+    ctx.globalAlpha = 0.35 * fade;
+    fillDisc(m.x, m.y, 4);
+    ctx.globalAlpha = fade;
+    fillDisc(m.x, m.y, 2.1);
+  }
+  ctx.restore();
 }
 
 /* The shell itself: kneeling at its cairn with a crook, a lantern hung from
@@ -18275,10 +18620,24 @@ function paintHud() {
       ui.pips.appendChild(d);
     }
     hudLast.pips = null;
+    hudLast.blood = null;
   }
   hudSet("pips", maxHp + ":" + player.hp, () => {
     const kids = ui.pips.children;
     for (let i = 0; i < kids.length; i++) kids[i].classList.toggle("spent", i >= player.hp);
+  });
+  /* The Herd Shell's hound mends pips by biting, and the next empty pip
+     fills from the bottom as its blood gathers, in twentieths so this is
+     written a handful of times a pip rather than every frame. */
+  const blood = player.hp < maxHp && player.st.bloodPip > 0
+    ? Math.round(clamp((player.blood || 0) / player.st.bloodPip, 0, 1) * 20) : 0;
+  hudSet("blood", maxHp + ":" + player.hp + ":" + blood, () => {
+    const kids = ui.pips.children;
+    for (let i = 0; i < kids.length; i++) {
+      const filling = blood > 0 && i === player.hp;
+      kids[i].classList.toggle("filling", filling);
+      if (filling) kids[i].style.setProperty("--fill", (blood / 20).toFixed(2));
+    }
   });
   /* On your last pip the whole row goes hot and beats. Losing a run because
      you didn't notice how thin you were is a bad way to lose one, and the
