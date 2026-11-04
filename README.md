@@ -409,9 +409,9 @@ since both the offer builder and the forge read from it.
 
 ## Arenas
 
-The board is 760x440 in game units. There are seven — ledges, spine, terraces,
-chasm, lifts, pillars, cascade — and you move
-between them through a door that opens after each boss. **Chasm** has no floor in the middle: fall through and it costs a pip and
+The board is 760x440 in game units. There are twelve — ledges, spine,
+terraces, chasm, lifts, orrery, pillars, cascade, forge, crevasse, atoll and
+isles — and you move between them through a door that opens after each boss. **Chasm** has no floor in the middle: fall through and it costs a pip and
 puts you back on solid ground with the wave still running. **Lifts** has
 three slabs in motion that carry you, and your turrets, wherever they go.
 **Cascade** is the one whose roof comes down on you. The dripstone doesn't
@@ -419,16 +419,33 @@ shake the camera — it comes down every few seconds for as long as anything in
 the room is alive, and even a small rumble on every break kept the whole fight
 twitching. The crack, the debris and the sound carry it instead.
 
+The three newest arenas:
+
+- **Crevasse** (the rime) has ice floes stepping up both walls and, over the
+  middle, a bridge of ice broken in two. The 60px gap is at the centre of the
+  room, right under the aurora, and every rise is 64px.
+- **Atoll** (the drowned reef) has a wide, low coral mound in the middle of
+  the floor, with heads standing either side and the reef climbing in two
+  arcs to a crown over the centre. The flanking heads are too high to reach
+  from the sand, so the climb starts on the mound.
+- **Isles** (the rift) is the one room where nothing holds still. Every ledge
+  is a shelf of rock adrift, bobbing 6px either way on its own slow clock, out
+  of step with its neighbours. Tiers are 62px apart, so even two neighbours
+  caught at opposite ends of their swing are a 74px climb, inside a stock
+  jump. The keystone at the top is the only fixed point.
+
 A door never leads back into the cavern you're leaving. The orrery holds two
 layouts, and walking the layouts in order used to put you through a door and
 into the same room with its ledges moved. The doors now follow a fixed tour —
 overgrowth, ossuary, cisterns, pantheon, orrery, reliquary, weeping city,
-forge, then the orrery again — so the one cavern that repeats comes back half
-a loop later.
+forge, rime, drowned reef, the orrery again, then the rift — so the one cavern
+that repeats comes back six rooms later.
 
 Every gap in every
 layout is 70px or less, so a stock single jump (88px apex) clears all of
-them without needing an upgrade first.
+them without needing an upgrade first. For the three newest arenas
+`tests/caverns.mjs` holds this against the jump measured off the game, with
+every bobbing ledge taken at the worst point of its swing.
 
 ### Cascade, and the arena as a mechanic
 
@@ -1026,6 +1043,49 @@ looks like itself.
   catches it, and the glass breathes as the light behind it moves. Candles burn
   on every plinth and gallery, two chandeliers hang from the vault, and a warm
   glow comes up through the broken floor from the crypt beneath.
+- **The rime** is a crevasse in a glacier, open to a polar night, and the
+  aurora is its only light. Three curtains of it ripple across the stars and
+  the band of the galaxy. Each is green and brightest at its hem, thins to
+  violet at the top, and has rays wherever it folds toward you. The green is
+  put everywhere that light would land: along the rims of the ridges, on the
+  tops of the ice and in streaks on the frozen floor. Nothing else in the room
+  is green, so the eye reads it all as lit from that one place in the sky.
+  - Three ranks of seracs step back into the dark, each smaller and fainter
+    than the one in front.
+  - The focal point is a spire of three ice shards in the far rank, the
+    tallest thing in the room and the first the aurora finds.
+  - A waterfall has frozen where it fell down one wall.
+  - Icicles hang into the top of the crack, and the long ones drip.
+  - Snow falls behind the fight, and a few big soft flakes drift in front
+    of it.
+- **The drowned reef** is a grotto the sea came into, lit through a long way
+  of water. It is brightest at the top and darkest at the floor, and nothing
+  in it holds still. Colour follows the water: red is the first thing water
+  takes, so the corals are vivid only near you and go blue-grey with
+  distance, and the warm accent is light the reef makes rather than light it
+  catches.
+  - The underside of the surface ripples overhead.
+  - Rays of light sway down from it.
+  - A net of rippling light knots and unknots on the seabed and the back of
+    the grotto.
+  - Three ranks of kelp lean in a current you never see.
+  - A coral garden of branching, fan, brain, tube and soft corals grows over
+    the floor.
+  - Jellies pulse as they rise, trailing tentacles that lag every beat.
+  - A school of small fish turns together and flashes as it turns.
+  - Bubbles come up out of the sand.
+  - About once a minute something very large crosses the far blue: the
+    shape of a whale, too far off to be a threat and too big to be anything
+    else.
+- **The rift** is the cavern's back wall torn open. On the other side there
+  is no more rock: a nebula, a spiral galaxy, a ringed world lit from one
+  side with a night side, shooting stars now and then, and islands of the
+  cave adrift in the light of them. The room is framed rather than filled.
+  The wall is a black frame, and the tear is the picture, its ragged edge
+  burning cyan, breathing, with sparks crawling along it and cracks running
+  out into the rock. Crystal clusters glow at the foot of the walls, and rock
+  that has come loose from the floor falls slowly upward, turning. The rock
+  down here weighs nothing, which is why the ledges bob.
 
 **The ledges belong to their cavern too.** The slab itself is the same stone
 everywhere, because it has to stay readable as somewhere to stand; what has
@@ -1058,6 +1118,18 @@ grown on it or been done to it is the cavern's.
   coming up through them, slag that gathers on the underside and falls to set
   in a pool below, and chains running from the slab up into the dark, because
   a ledge hanging over a molten floor wants an answer to what is holding it.
+- **Rime** — a snow cap along the lip with glints wandering slowly along it, a
+  glaze of ice over the face with frost cracks in it, and icicles hanging off
+  the underside, with drops gathering and falling from the long ones. The
+  frozen floor carries the aurora's colours in streaks.
+- **Drowned reef** — anemones on the lip with their tentacles leaning in the
+  current and lit at the tips, a crust of coralline algae and barnacles on the
+  face, weed hanging off the underside, and the surface's light sliding along
+  the top. The floor is rippled sand.
+- **Rift** — every ledge is a shelf of rock adrift: a dark keel of rock hangs
+  under it, glowing crystals grow out of the keel, runes cut into the face
+  pulse cyan on their own breath, and pebbles hang in the air beneath it,
+  bobbing out of step with the stone. The floor has glowing fissures.
 
 ### What the weeping city is doing
 
@@ -1641,7 +1713,7 @@ format is ignored rather than restored into a crash.
 | `popup.html` | HUD, canvas, overlay, control legend |
 | `popup.css` | Palette and layout |
 | `popup.js` | Physics, aiming, weapons, enemies, waves, rendering |
-| `art/` | How every boss (`art/bosses/`), mob (`art/mobs/`) and the Herd Shell's beasts (`art/beasts/`) are drawn, one file each, loaded by `popup.html` ahead of `popup.js` |
+| `art/` | How every boss (`art/bosses/`), mob (`art/mobs/`) and the Herd Shell's beasts (`art/beasts/`) are drawn, and the three newest caverns (`art/caverns/`), one file each, loaded by `popup.html` ahead of `popup.js` |
 
 The game runs on a fixed 60 Hz timestep with a frame accumulator, so physics
 stays identical on a 144 Hz monitor. Rendering happens once per animation

@@ -27,8 +27,8 @@ popup.html   the skeleton: a <canvas id="stage">, a HUD header, and the
 popup.css    all styling for those panels. Does not touch the game itself.
 popup.js     the game: everything except how its creatures look
 art/         how its creatures look — one file each, in bosses/, mobs/ and
-             beasts/ (the Herd Shell's), loaded ahead of popup.js (see "Art"
-             in §8)
+             beasts/ (the Herd Shell's) — and the three newest caverns, in
+             caverns/; loaded ahead of popup.js (see "Art" in §8)
 fonts/       three woff2 faces: display, data, voice
 icons/       toolbar icons
 ```
@@ -430,6 +430,8 @@ How every boss and mob looks lives in `art/`, one file per creature:
 `art/bosses/` holds the thirteen bosses plus `presence.js`, the shadow, aura
 and cinders every boss stands in, `art/mobs/` holds the twelve mob kinds, and
 `art/beasts/` holds the Herd Shell's hound, swift and boar.
+`art/caverns/` holds the three newest caverns, the rime, the drowned reef and
+the rift (see "Biomes" below).
 A file is nothing but drawing code — functions that take a foe and paint it
 onto `ctx` with the palette `C` and the shape helpers (`fillDisc`,
 `strokeRing`, `fillOval`, …) that `popup.js` defines.
@@ -473,7 +475,7 @@ mob `drawMob` doesn't know draws nothing; `tests/art.mjs` catches both.
 
 ### Biomes
 
-Eight entries in `BIOMES`, each owning its light colour, shaft count, fog, prop
+Eleven entries in `BIOMES`, each owning its light colour, shaft count, fog, prop
 mix and palette. `buildBackdrop(mapIndex)` generates the scenery **once per
 map** from a seeded PRNG:
 
@@ -486,8 +488,47 @@ function seeded(seed) {
 
 Same seed, same cave, every time — arenas are stable without storing anything.
 
-`LAYOUT_BIOME` pins each of the nine arena layouts to a biome, because the
+`LAYOUT_BIOME` pins each of the twelve arena layouts to a biome, because the
 two lists are different lengths and a plain modulo drifted them apart.
+
+**The newer caverns keep their art in `art/caverns/`.** The first eight
+caverns are drawn by branches in `popup.js`. The rime, the drowned reef and
+the rift are each a file, which `popup.js` reaches through one table,
+`CAVERN_ART`, keyed by biome id. An entry can give:
+
+| Hook | What it does |
+| --- | --- |
+| `build(rnd, slabs)` | builds the room's scenery once per arena, from its own seeded stream (`seeded(mapIndex * 6131 + 71)`), so nothing already generated moves |
+| `sky` | draws between the air and the far ridges |
+| `structure` | draws behind the fight |
+| `near` | draws after the props |
+| `front` | draws in front of the fight, sparingly |
+| `dress` | adds to a slab's dressing |
+| `face` and `ledge` | draw the slab |
+
+Any draw may be missing. A biome can also switch off the generic `columns`,
+`roofTeeth` or `ridges` where they would stand in front of its sky.
+
+Three rules came out of building them:
+
+- **Every call into a cavern's art goes through `cavernArt`**, inside a save
+  and a restore. A line cap left set by the reef rode into the rift's direct
+  drawing but not its cached layers, so the planet's ring got round end caps
+  in one and not the other.
+- **A cached painter sets its own line state.** A cached layer starts from a
+  fresh canvas, and a direct draw starts from whatever was last set.
+- **The direct path draws where the cache would.** `snapToLayer(o)` returns
+  the offset `blitLayer` will actually lay a layer at, which is whole device
+  pixels. Drawn at the raw offset, every crisp edge in the rime's ice moved by
+  up to half a pixel.
+
+**Soft light that moves**, such as an aurora, the reef's rays and its
+caustics, goes through `drawSoft`. It is painted every frame into a small
+canvas at a fraction of the screen's resolution, then stretched back over the
+frame with smoothing on. That is a ninth of the pixels at a third of the
+resolution, and the stretch is the softness that light wants anyway. It is
+not a cache, so it draws the same picture with the layer cache on or off. A
+browser that can't blit gets the paint drawn straight in.
 
 `LAYOUT_SHARDS` is a second table of the same shape, and deliberately so: it
 says which arenas run a hazard of their own and how often. A marker hidden

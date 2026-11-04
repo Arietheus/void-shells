@@ -22,6 +22,7 @@ node tests/ledges.mjs
 node tests/blur.mjs
 node tests/layers.mjs
 node tests/haste.mjs
+node tests/caverns.mjs
 ```
 
 `harness.mjs` is the seam. It builds a stub DOM with a real canvas behind it,
@@ -65,6 +66,7 @@ at it, not by an assertion.
 | `cors.mjs` | who the board lets read it: a listed build is allowed and an unlisted one is refused by the header while the status stays 200, the preflight agrees, and the bundled Worker behaves exactly like the source it was built from |
 | `tour.mjs` | no door leads back into the cavern you're leaving, a full loop visits every arena, saves keep walking the tour, an unwalkable table falls back instead of throwing, and every door walked through by pressing the interact key into the real key handler |
 | `ledges.mjs` | ledge dressing is parallel to each layout and deterministic, moves nothing else in any room, never reaches a slab's top three pixels, puts puddles under drips and rain only on open stone, draws every arena through whole drip cycles clean, and footfalls take nothing from `Math.random` and leave 600 frames of movement identical |
+| `caverns.mjs` | the rime, the drowned reef and the rift: each is an arena of its own with its art wired in; every ledge in each can be climbed to from the floor one stock jump at a time, judged against the jump measured off the game and with the rift's bobbing ledges taken at the worst point of their swing; the rift's ledges really bob, out of step, and its keystone holds still; each builds the same room every time; the rime's bridge is broken at the middle, the reef's mound is its widest and lowest ledge, and the rift's tear runs nearly wall to wall; and drawing any of them leaves nothing set on the canvas behind it |
 | `layers.mjs` | a cached backdrop layer and a whole cached frame draw the same picture as drawing it all directly, in every arena at both an ordinary and a retina scale; a layer laid twice is identical; and the resolution governor only ever gives back pixels a retina screen has to spare, never oscillating |
 | `haste.mjs` | the Double Time event steps the simulation twice as often and turns the animation clock with it, its waves are the ordinary ones, a run parked under a retired event is refused rather than resumed as an ordinary one, and dripstone never moves the camera — landing on stone, on a foe, or on you |
 | `blur.mjs` | motion blur on real pixels: a still room is unchanged, a moving thing trails at the set strength while its current frame stays full bright, the same trail at 60Hz and 144Hz, history dropped on a stall/new room/off, shake doesn't double the room, a canvas that can't blit loses the effect and not the game |
